@@ -13,10 +13,12 @@ dependencies = [
 
 [project.optional-dependencies]
 api = ["fastapi>=0.115", "uvicorn>=0.30", "websockets>=12.0"]
+telegram = ["python-telegram-bot>=21.0"]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.24", "pytest-cov>=5.0", "ruff>=0.5"]
 
 [project.scripts]
 freudian-mind = "freudian_mind.cli:main"
+freudian-telegram = "freudian_mind.telegram:main"
 
 [tool.setuptools.packages.find]
 include = ["freudian_mind*"]

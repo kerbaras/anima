@@ -23,9 +23,16 @@ def build_system_prompt(
     base_personality: str,
     promotions: list[dict],
     interrupts: list[dict],
+    bridge_context: str = "",
 ) -> str:
     """Assemble the conscious layer's system prompt from promotions and interrupts."""
     parts = [base_personality]
+
+    # Cross-session bridge context (background knowledge, not conversation)
+    if bridge_context:
+        parts.append("\n--- Previous session context (background knowledge) ---")
+        parts.append(bridge_context)
+        parts.append("--- End previous session context ---")
 
     # Memory promotions
     memories = [p for p in promotions if p.get("type") == "memory"]

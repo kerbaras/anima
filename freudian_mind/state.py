@@ -147,6 +147,23 @@ class SharedState:
                 last_seen REAL,
                 resolved INTEGER DEFAULT 0
             );
+
+            CREATE TABLE IF NOT EXISTS sessions (
+                id TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                conversation_id TEXT NOT NULL,
+                started_at REAL,
+                last_activity REAL,
+                turn_count INTEGER DEFAULT 0,
+                topic_summary TEXT DEFAULT '',
+                closed INTEGER DEFAULT 0
+            );
+
+            CREATE TABLE IF NOT EXISTS user_conversations (
+                user_id TEXT PRIMARY KEY,
+                conversation_id TEXT NOT NULL,
+                created_at REAL
+            );
         """)
         await self._db.commit()
 
@@ -553,3 +570,100 @@ class SharedState:
             (pattern_id,),
         )
         await self._db.commit()
+
+    # ── User-Conversation Mapping ─────────────────────────────────────────
+
+    async def get_or_create_user_conversation(self, user_id: str) -> str:
+        cursor = await self._db.execute(
+            "SELECT conversation_id FROM user_conversations WHERE user_id = ?",
+            (user_id,),
+        )
+        row = await cursor.fetchone()
+        if row:
+            return row["conversation_id"]
+        conv_id = await self.create_conversation()
+        await self._db.execute(
+            "INSERT INTO user_conversations (user_id, conversation_id, created_at) "
+            "VALUES (?, ?, ?)",
+            (user_id, conv_id, time.time()),
+        )
+        await self._db.commit()
+        return conv_id
+
+    # ── Sessions ──────────────────────────────────────────────────────────
+
+    async def create_session(self, user_id: str, conversation_id: str) -> str:
+        session_id = str(uuid.uuid4())[:12]
+        now = time.time()
+        await self._db.execute(
+            "INSERT INTO sessions (id, user_id, conversation_id, started_at, "
+            "last_activity, turn_count, topic_summary, closed) "
+            "VALUES (?, ?, ?, ?, ?, 0, '', 0)",
+            (session_id, user_id, conversation_id, now, now),
+        )
+        await self._db.commit()
+        return session_id
+
+    async def get_active_session(self, user_id: str) -> dict | None:
+        cursor = await self._db.execute(
+            "SELECT * FROM sessions WHERE user_id = ? AND closed = 0 "
+            "ORDER BY started_at DESC LIMIT 1",
+            (user_id,),
+        )
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+
+    async def close_session(self, session_id: str):
+        await self._db.execute(
+            "UPDATE sessions SET closed = 1 WHERE id = ?", (session_id,)
+        )
+        await self._db.commit()
+
+    async def touch_session(self, session_id: str):
+        await self._db.execute(
+            "UPDATE sessions SET last_activity = ?, turn_count = turn_count + 1 "
+            "WHERE id = ?",
+            (time.time(), session_id),
+        )
+        await self._db.commit()
+
+    async def update_session_summary(self, session_id: str, summary: str):
+        await self._db.execute(
+            "UPDATE sessions SET topic_summary = ? WHERE id = ?",
+            (summary, session_id),
+        )
+        await self._db.commit()
+
+    async def get_previous_session(
+        self, user_id: str, before_session_id: str
+    ) -> dict | None:
+        cursor = await self._db.execute(
+            "SELECT started_at FROM sessions WHERE id = ?",
+            (before_session_id,),
+        )
+        current = await cursor.fetchone()
+        if not current:
+            return None
+        cursor = await self._db.execute(
+            "SELECT * FROM sessions WHERE user_id = ? AND started_at < ? "
+            "ORDER BY started_at DESC LIMIT 1",
+            (user_id, current["started_at"]),
+        )
+        row = await cursor.fetchone()
+        return dict(row) if row else None
+
+    async def get_session_closing_turns(
+        self,
+        conversation_id: str,
+        session_started_at: float,
+        session_last_activity: float,
+        n: int = 5,
+    ) -> list[dict]:
+        cursor = await self._db.execute(
+            "SELECT * FROM turns WHERE conversation_id = ? "
+            "AND timestamp >= ? AND timestamp <= ? "
+            "ORDER BY id DESC LIMIT ?",
+            (conversation_id, session_started_at, session_last_activity, n),
+        )
+        rows = await cursor.fetchall()
+        return [dict(r) for r in reversed(rows)]
