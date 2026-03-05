@@ -8,6 +8,7 @@ import uuid
 
 import aiosqlite
 
+from .agents.models import AgentTask, TaskPhase, TaskStatus, ToolSpec
 from .models import Impression, ResponseOutcome
 
 
@@ -164,6 +165,32 @@ class SharedState:
                 conversation_id TEXT NOT NULL,
                 created_at REAL
             );
+
+            CREATE TABLE IF NOT EXISTS agent_tasks (
+                id TEXT PRIMARY KEY,
+                parent_task_id TEXT,
+                conversation_id TEXT DEFAULT '',
+                model TEXT DEFAULT '',
+                description TEXT NOT NULL,
+                tools TEXT DEFAULT '[]',
+                phase TEXT DEFAULT 'plan',
+                status TEXT DEFAULT 'queued',
+                max_subtasks INTEGER DEFAULT 5,
+                depth INTEGER DEFAULT 0,
+                max_depth INTEGER DEFAULT 3,
+                result TEXT DEFAULT '',
+                children TEXT DEFAULT '[]',
+                phase_results TEXT DEFAULT '{}',
+                retry_count INTEGER DEFAULT 0,
+                max_retries INTEGER DEFAULT 2,
+                created_at REAL,
+                updated_at REAL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_agent_tasks_status
+                ON agent_tasks(status);
+            CREATE INDEX IF NOT EXISTS idx_agent_tasks_parent
+                ON agent_tasks(parent_task_id);
         """)
         await self._db.commit()
 
@@ -667,3 +694,154 @@ class SharedState:
         )
         rows = await cursor.fetchall()
         return [dict(r) for r in reversed(rows)]
+
+    # ── Agent Tasks ─────────────────────────────────────────────────────────
+
+    def _task_to_row(self, task: AgentTask) -> tuple:
+        return (
+            task.id,
+            task.parent_task_id,
+            task.conversation_id,
+            task.model,
+            task.description,
+            json.dumps([vars(t) for t in task.tools]),
+            task.phase.value,
+            task.status.value,
+            task.max_subtasks,
+            task.depth,
+            task.max_depth,
+            task.result,
+            json.dumps(task.children),
+            json.dumps(task.phase_results),
+            task.retry_count,
+            task.max_retries,
+            task.created_at,
+            time.time(),
+        )
+
+    def _row_to_task(self, row: dict) -> AgentTask:
+        tools_raw = json.loads(row.get("tools", "[]"))
+        return AgentTask(
+            id=row["id"],
+            parent_task_id=row.get("parent_task_id"),
+            conversation_id=row.get("conversation_id", ""),
+            model=row.get("model", ""),
+            description=row["description"],
+            tools=[ToolSpec(**t) for t in tools_raw],
+            phase=TaskPhase(row.get("phase", "plan")),
+            status=TaskStatus(row.get("status", "queued")),
+            max_subtasks=row.get("max_subtasks", 5),
+            depth=row.get("depth", 0),
+            max_depth=row.get("max_depth", 3),
+            result=row.get("result", ""),
+            children=json.loads(row.get("children", "[]")),
+            phase_results=json.loads(row.get("phase_results", "{}")),
+            retry_count=row.get("retry_count", 0),
+            max_retries=row.get("max_retries", 2),
+            created_at=row.get("created_at", 0.0),
+        )
+
+    async def create_agent_task(self, task: AgentTask) -> str:
+        await self._db.execute(
+            "INSERT INTO agent_tasks (id, parent_task_id, conversation_id, model, "
+            "description, tools, phase, status, max_subtasks, depth, max_depth, "
+            "result, children, phase_results, retry_count, max_retries, "
+            "created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            self._task_to_row(task),
+        )
+        await self._db.commit()
+        return task.id
+
+    async def get_agent_task(self, task_id: str) -> AgentTask | None:
+        cursor = await self._db.execute(
+            "SELECT * FROM agent_tasks WHERE id = ?", (task_id,)
+        )
+        row = await cursor.fetchone()
+        return self._row_to_task(dict(row)) if row else None
+
+    async def get_queued_agent_tasks(self) -> list[AgentTask]:
+        cursor = await self._db.execute(
+            "SELECT * FROM agent_tasks WHERE status = 'queued' "
+            "ORDER BY created_at ASC"
+        )
+        rows = await cursor.fetchall()
+        return [self._row_to_task(dict(r)) for r in rows]
+
+    async def get_children_tasks(self, parent_id: str) -> list[AgentTask]:
+        cursor = await self._db.execute(
+            "SELECT * FROM agent_tasks WHERE parent_task_id = ?",
+            (parent_id,),
+        )
+        rows = await cursor.fetchall()
+        return [self._row_to_task(dict(r)) for r in rows]
+
+    async def update_agent_task_status(
+        self,
+        task_id: str,
+        status: TaskStatus,
+        phase: TaskPhase | None = None,
+    ):
+        if phase is not None:
+            await self._db.execute(
+                "UPDATE agent_tasks SET status = ?, phase = ?, updated_at = ? "
+                "WHERE id = ?",
+                (status.value, phase.value, time.time(), task_id),
+            )
+        else:
+            await self._db.execute(
+                "UPDATE agent_tasks SET status = ?, updated_at = ? WHERE id = ?",
+                (status.value, time.time(), task_id),
+            )
+        await self._db.commit()
+
+    async def update_agent_task_phase_result(
+        self, task_id: str, phase: str, result: str
+    ):
+        task = await self.get_agent_task(task_id)
+        if not task:
+            return
+        task.phase_results[phase] = result
+        await self._db.execute(
+            "UPDATE agent_tasks SET phase_results = ?, updated_at = ? WHERE id = ?",
+            (json.dumps(task.phase_results), time.time(), task_id),
+        )
+        await self._db.commit()
+
+    async def update_agent_task_final(self, task: AgentTask):
+        await self._db.execute(
+            "UPDATE agent_tasks SET status = ?, phase = ?, result = ?, "
+            "children = ?, phase_results = ?, retry_count = ?, updated_at = ? "
+            "WHERE id = ?",
+            (
+                task.status.value,
+                task.phase.value,
+                task.result,
+                json.dumps(task.children),
+                json.dumps(task.phase_results),
+                task.retry_count,
+                time.time(),
+                task.id,
+            ),
+        )
+        await self._db.commit()
+
+    async def add_child_to_task(self, parent_id: str, child_id: str):
+        task = await self.get_agent_task(parent_id)
+        if not task:
+            return
+        task.children.append(child_id)
+        await self._db.execute(
+            "UPDATE agent_tasks SET children = ?, updated_at = ? WHERE id = ?",
+            (json.dumps(task.children), time.time(), parent_id),
+        )
+        await self._db.commit()
+
+    async def recover_running_tasks(self):
+        """Reset RUNNING tasks to QUEUED on startup (crash recovery)."""
+        await self._db.execute(
+            "UPDATE agent_tasks SET status = 'queued', updated_at = ? "
+            "WHERE status = 'running'",
+            (time.time(),),
+        )
+        await self._db.commit()

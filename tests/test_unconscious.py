@@ -2,16 +2,21 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from freudian_mind.agents.orchestrator import TaskOrchestrator
 from freudian_mind.config import MindConfig
 from freudian_mind.layers.unconscious import UnconsciousLayer
 from freudian_mind.models import Impression, ImpressionType
 from freudian_mind.state import SharedState
+from freudian_mind.systems.defense import DefenseProfile
+from freudian_mind.systems.growth import GrowthEngine
 from freudian_mind.systems.idea_space import IdeaSpace
+from freudian_mind.systems.neurosis import RepetitionDetector
 
 
 def _mock_api_response(data: dict):
@@ -20,40 +25,22 @@ def _mock_api_response(data: dict):
     return mock
 
 
-class TestDemandAssessment:
-    async def test_idle_when_no_work(self, state, config):
-        idea_space = IdeaSpace(state)
-        layer = UnconsciousLayer(state, idea_space, config)
-        demand = await layer._assess_demand()
-        assert demand == "IDLE"
-
-    async def test_deep_analysis_with_new_turns(self, state, config):
-        await state.create_conversation("c1")
-        await state.log_turn("c1", 1, "user", "hello")
-        config.unconscious_interval = 9999  # Everything is "recent"
-        idea_space = IdeaSpace(state)
-        layer = UnconsciousLayer(state, idea_space, config)
-        demand = await layer._assess_demand()
-        assert demand == "DEEP_ANALYSIS"
-
-    async def test_subagent_dispatch_with_pending_tasks(self, state, config):
-        await state.create_task("c1", "research something", "do it")
-        config.unconscious_interval = 0.001
-        idea_space = IdeaSpace(state)
-        layer = UnconsciousLayer(state, idea_space, config)
-        # Need to make sure no recent turns
-        import time
-        await asyncio.sleep(0.01)
-        demand = await layer._assess_demand()
-        # Could be SUBAGENT_DISPATCH or DEEP_ANALYSIS depending on timing
-        assert demand in ("SUBAGENT_DISPATCH", "DEEP_ANALYSIS")
+def _make_layer(state, config):
+    """Create an UnconsciousLayer with all required dependencies."""
+    idea_space = IdeaSpace(state)
+    defense_profile = DefenseProfile()
+    repetition_detector = RepetitionDetector()
+    growth_engine = GrowthEngine(defense_profile, repetition_detector)
+    orchestrator = TaskOrchestrator(state, config)
+    return UnconsciousLayer(
+        state, idea_space, config, orchestrator, defense_profile, growth_engine
+    )
 
 
 class TestProcessImpression:
     @patch("freudian_mind.layers.unconscious.anthropic.AsyncAnthropic")
     async def test_stores_new_impression(self, mock_cls, state, config):
-        idea_space = IdeaSpace(state)
-        layer = UnconsciousLayer(state, idea_space, config)
+        layer = _make_layer(state, config)
 
         item = {
             "type": "pattern",
@@ -70,8 +57,7 @@ class TestProcessImpression:
 
     @patch("freudian_mind.layers.unconscious.anthropic.AsyncAnthropic")
     async def test_critical_correction_creates_interrupt(self, mock_cls, state, config):
-        idea_space = IdeaSpace(state)
-        layer = UnconsciousLayer(state, idea_space, config)
+        layer = _make_layer(state, config)
         await state.create_conversation("c1")
 
         item = {
@@ -93,8 +79,7 @@ class TestProcessImpression:
 
     @patch("freudian_mind.layers.unconscious.anthropic.AsyncAnthropic")
     async def test_reinforces_similar_impression(self, mock_cls, state, config):
-        idea_space = IdeaSpace(state)
-        layer = UnconsciousLayer(state, idea_space, config)
+        layer = _make_layer(state, config)
 
         # Store existing impression with similarity key
         imp = Impression(
@@ -122,8 +107,7 @@ class TestProcessImpression:
 
 class TestPressureCalculation:
     async def test_pressure_levels(self, state, config):
-        idea_space = IdeaSpace(state)
-        layer = UnconsciousLayer(state, idea_space, config)
+        layer = _make_layer(state, config)
 
         imp = Impression(emotional_charge=0.0)
         assert layer._calculate_pressure(imp, "low") == pytest.approx(0.15)
@@ -132,16 +116,14 @@ class TestPressureCalculation:
         assert layer._calculate_pressure(imp, "critical") == pytest.approx(0.9)
 
     async def test_emotional_charge_adds_pressure(self, state, config):
-        idea_space = IdeaSpace(state)
-        layer = UnconsciousLayer(state, idea_space, config)
+        layer = _make_layer(state, config)
 
         imp = Impression(emotional_charge=0.5)
         base = layer._calculate_pressure(imp, "low")
         assert base > 0.15  # More than base because of charge
 
     async def test_initial_pressure_clamped(self, state, config):
-        idea_space = IdeaSpace(state)
-        layer = UnconsciousLayer(state, idea_space, config)
+        layer = _make_layer(state, config)
 
         # High urgency should still be clamped to initial_pressure_range
         item = {
@@ -182,15 +164,10 @@ class TestDeepCycle:
         await state.create_conversation("c1")
         await state.log_turn("c1", 1, "user", "I'm learning Python")
 
-        idea_space = IdeaSpace(state)
-        layer = UnconsciousLayer(state, idea_space, config)
+        layer = _make_layer(state, config)
         layer.client = mock_client
 
         await layer._deep_cycle()
 
         imps = await state.get_active_impressions()
         assert len(imps) >= 1
-
-
-# Import for the test that needs asyncio.sleep
-import asyncio
