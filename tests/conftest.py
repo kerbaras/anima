@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from freudian_mind.config import MindConfig
-from freudian_mind.state import SharedState
+from anima.config import MindConfig
+from anima.state import SharedState
 
 
 @pytest.fixture

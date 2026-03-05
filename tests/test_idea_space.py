@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from freudian_mind.models import Impression, ImpressionType
-from freudian_mind.systems.idea_space import IdeaSpace
+from anima.models import Impression, ImpressionType
+from anima.systems.idea_space import IdeaSpace
 
 
 class TestEmbedding:

@@ -6,10 +6,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from freudian_mind.config import MindConfig
-from freudian_mind.layers.conscious import ConsciousLayer
-from freudian_mind.prompts.conscious_prompts import build_system_prompt
-from freudian_mind.state import SharedState
+from anima.config import MindConfig
+from anima.layers.conscious import ConsciousLayer
+from anima.prompts.conscious_prompts import build_system_prompt
+from anima.state import SharedState
 
 
 def _mock_api_response(text: str):
@@ -60,7 +60,7 @@ class TestSystemPrompt:
 
 
 class TestConsciousLayer:
-    @patch("freudian_mind.layers.conscious.anthropic.AsyncAnthropic")
+    @patch("anima.layers.conscious.anthropic.AsyncAnthropic")
     async def test_single_message_burst(self, mock_anthropic_cls, state, config):
         mock_client = AsyncMock()
         mock_anthropic_cls.return_value = mock_client
@@ -81,7 +81,7 @@ class TestConsciousLayer:
         assert len(burst.messages) == 1
         assert burst.messages[0] == "Hello there!"
 
-    @patch("freudian_mind.layers.conscious.anthropic.AsyncAnthropic")
+    @patch("anima.layers.conscious.anthropic.AsyncAnthropic")
     async def test_multi_message_burst(self, mock_anthropic_cls, state, config):
         mock_client = AsyncMock()
         mock_anthropic_cls.return_value = mock_client
@@ -101,7 +101,7 @@ class TestConsciousLayer:
         burst = await layer.respond("c1", "tell me more")
         assert len(burst.messages) == 2
 
-    @patch("freudian_mind.layers.conscious.anthropic.AsyncAnthropic")
+    @patch("anima.layers.conscious.anthropic.AsyncAnthropic")
     async def test_max_burst_limit(self, mock_anthropic_cls, state, config):
         mock_client = AsyncMock()
         mock_anthropic_cls.return_value = mock_client
@@ -118,7 +118,7 @@ class TestConsciousLayer:
         burst = await layer.respond("c1", "go on")
         assert len(burst.messages) <= 3
 
-    @patch("freudian_mind.layers.conscious.anthropic.AsyncAnthropic")
+    @patch("anima.layers.conscious.anthropic.AsyncAnthropic")
     async def test_empty_response_fallback(self, mock_anthropic_cls, state, config):
         mock_client = AsyncMock()
         mock_anthropic_cls.return_value = mock_client
@@ -135,7 +135,7 @@ class TestConsciousLayer:
         assert len(burst.messages) >= 1
         assert burst.messages[0] == "I'm here."
 
-    @patch("freudian_mind.layers.conscious.anthropic.AsyncAnthropic")
+    @patch("anima.layers.conscious.anthropic.AsyncAnthropic")
     async def test_done_stripped_from_message(self, mock_anthropic_cls, state, config):
         mock_client = AsyncMock()
         mock_anthropic_cls.return_value = mock_client
@@ -154,7 +154,7 @@ class TestConsciousLayer:
         burst = await layer.respond("c1", "question")
         assert "[DONE]" not in burst.messages[0]
 
-    @patch("freudian_mind.layers.conscious.anthropic.AsyncAnthropic")
+    @patch("anima.layers.conscious.anthropic.AsyncAnthropic")
     async def test_interrupts_consumed(self, mock_anthropic_cls, state, config):
         mock_client = AsyncMock()
         mock_anthropic_cls.return_value = mock_client

@@ -7,12 +7,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from freudian_mind.config import MindConfig
-from freudian_mind.layers.preconscious import PreconsciousLayer
-from freudian_mind.models import Impression, ImpressionType
-from freudian_mind.state import SharedState
-from freudian_mind.systems.defense import DefenseProfile
-from freudian_mind.systems.idea_space import IdeaSpace
+from anima.config import MindConfig
+from anima.layers.preconscious import PreconsciousLayer
+from anima.models import Impression, ImpressionType
+from anima.state import SharedState
+from anima.systems.defense import DefenseProfile
+from anima.systems.idea_space import IdeaSpace
 
 
 def _mock_defense_response(data: dict):
@@ -22,7 +22,7 @@ def _mock_defense_response(data: dict):
 
 
 class TestDefenseApplication:
-    @patch("freudian_mind.layers.preconscious.anthropic.AsyncAnthropic")
+    @patch("anima.layers.preconscious.anthropic.AsyncAnthropic")
     async def test_sublimation_promotes_as_tool(self, mock_cls, state, config):
         mock_client = AsyncMock()
         mock_cls.return_value = mock_client
@@ -73,7 +73,7 @@ class TestDefenseApplication:
         active = await state.get_active_impressions()
         assert len(active) == 0
 
-    @patch("freudian_mind.layers.preconscious.anthropic.AsyncAnthropic")
+    @patch("anima.layers.preconscious.anthropic.AsyncAnthropic")
     async def test_repression_marks_repressed(self, mock_cls, state, config):
         mock_client = AsyncMock()
         mock_cls.return_value = mock_client
@@ -106,7 +106,7 @@ class TestDefenseApplication:
         active = await state.get_active_impressions()
         assert len(active) == 0  # Repressed = filtered out
 
-    @patch("freudian_mind.layers.preconscious.anthropic.AsyncAnthropic")
+    @patch("anima.layers.preconscious.anthropic.AsyncAnthropic")
     async def test_rationalization_reduces_pressure(self, mock_cls, state, config):
         mock_client = AsyncMock()
         mock_cls.return_value = mock_client
@@ -140,7 +140,7 @@ class TestDefenseApplication:
         assert len(active) == 1
         assert active[0]["pressure"] < 0.8  # Reduced by 30%
 
-    @patch("freudian_mind.layers.preconscious.anthropic.AsyncAnthropic")
+    @patch("anima.layers.preconscious.anthropic.AsyncAnthropic")
     async def test_intellectualization_stores_as_memory(self, mock_cls, state, config):
         mock_client = AsyncMock()
         mock_cls.return_value = mock_client
@@ -174,7 +174,7 @@ class TestDefenseApplication:
         memories = await state.get_active_promotions(type_filter="memory")
         assert len(memories) >= 1
 
-    @patch("freudian_mind.layers.preconscious.anthropic.AsyncAnthropic")
+    @patch("anima.layers.preconscious.anthropic.AsyncAnthropic")
     async def test_denial_drops_impression(self, mock_cls, state, config):
         mock_client = AsyncMock()
         mock_cls.return_value = mock_client
@@ -207,7 +207,7 @@ class TestDefenseApplication:
         active = await state.get_active_impressions()
         assert len(active) == 0  # Denied = dropped
 
-    @patch("freudian_mind.layers.preconscious.anthropic.AsyncAnthropic")
+    @patch("anima.layers.preconscious.anthropic.AsyncAnthropic")
     async def test_defense_event_logged(self, mock_cls, state, config):
         mock_client = AsyncMock()
         mock_cls.return_value = mock_client

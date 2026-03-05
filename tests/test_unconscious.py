@@ -8,15 +8,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from freudian_mind.agents.orchestrator import TaskOrchestrator
-from freudian_mind.config import MindConfig
-from freudian_mind.layers.unconscious import UnconsciousLayer
-from freudian_mind.models import Impression, ImpressionType
-from freudian_mind.state import SharedState
-from freudian_mind.systems.defense import DefenseProfile
-from freudian_mind.systems.growth import GrowthEngine
-from freudian_mind.systems.idea_space import IdeaSpace
-from freudian_mind.systems.neurosis import RepetitionDetector
+from anima.agents.orchestrator import TaskOrchestrator
+from anima.config import MindConfig
+from anima.layers.unconscious import UnconsciousLayer
+from anima.models import Impression, ImpressionType
+from anima.state import SharedState
+from anima.systems.defense import DefenseProfile
+from anima.systems.growth import GrowthEngine
+from anima.systems.idea_space import IdeaSpace
+from anima.systems.neurosis import RepetitionDetector
 
 
 def _mock_api_response(data: dict):
@@ -38,7 +38,7 @@ def _make_layer(state, config):
 
 
 class TestProcessImpression:
-    @patch("freudian_mind.layers.unconscious.anthropic.AsyncAnthropic")
+    @patch("anima.layers.unconscious.anthropic.AsyncAnthropic")
     async def test_stores_new_impression(self, mock_cls, state, config):
         layer = _make_layer(state, config)
 
@@ -55,7 +55,7 @@ class TestProcessImpression:
         assert len(imps) == 1
         assert imps[0]["content"] == "user prefers concise answers"
 
-    @patch("freudian_mind.layers.unconscious.anthropic.AsyncAnthropic")
+    @patch("anima.layers.unconscious.anthropic.AsyncAnthropic")
     async def test_critical_correction_creates_interrupt(self, mock_cls, state, config):
         layer = _make_layer(state, config)
         await state.create_conversation("c1")
@@ -77,7 +77,7 @@ class TestProcessImpression:
         assert len(interrupts) == 1
         assert "2+2=4" in interrupts[0]["content"]
 
-    @patch("freudian_mind.layers.unconscious.anthropic.AsyncAnthropic")
+    @patch("anima.layers.unconscious.anthropic.AsyncAnthropic")
     async def test_reinforces_similar_impression(self, mock_cls, state, config):
         layer = _make_layer(state, config)
 
@@ -138,7 +138,7 @@ class TestPressureCalculation:
 
 
 class TestDeepCycle:
-    @patch("freudian_mind.layers.unconscious.anthropic.AsyncAnthropic")
+    @patch("anima.layers.unconscious.anthropic.AsyncAnthropic")
     async def test_deep_cycle_processes_response(self, mock_cls, state, config):
         mock_client = AsyncMock()
         mock_cls.return_value = mock_client

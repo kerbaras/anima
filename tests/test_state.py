@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import pytest
 
-from freudian_mind.models import (
+from anima.models import (
     Impression,
     ImpressionType,
     OutcomeSignal,
     ResponseOutcome,
 )
-from freudian_mind.state import SharedState
+from anima.state import SharedState
 
 
 class TestConversations:

@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from freudian_mind.models import OutcomeSignal
-from freudian_mind.systems.outcome import OutcomeClassifier
+from anima.models import OutcomeSignal
+from anima.systems.outcome import OutcomeClassifier
 
 
 def _mock_api_response(data: dict):
@@ -16,7 +16,7 @@ def _mock_api_response(data: dict):
 
 
 class TestOutcomeClassifier:
-    @patch("freudian_mind.systems.outcome.anthropic.AsyncAnthropic")
+    @patch("anima.systems.outcome.anthropic.AsyncAnthropic")
     async def test_classifies_positive(self, mock_cls):
         mock_client = AsyncMock()
         mock_cls.return_value = mock_client
@@ -38,7 +38,7 @@ class TestOutcomeClassifier:
         assert outcome.signal == OutcomeSignal.POSITIVE
         assert outcome.response_was_useful is True
 
-    @patch("freudian_mind.systems.outcome.anthropic.AsyncAnthropic")
+    @patch("anima.systems.outcome.anthropic.AsyncAnthropic")
     async def test_classifies_correction(self, mock_cls):
         mock_client = AsyncMock()
         mock_cls.return_value = mock_client
@@ -60,7 +60,7 @@ class TestOutcomeClassifier:
         assert outcome.signal == OutcomeSignal.CORRECTION
         assert outcome.user_had_to_repeat is True
 
-    @patch("freudian_mind.systems.outcome.anthropic.AsyncAnthropic")
+    @patch("anima.systems.outcome.anthropic.AsyncAnthropic")
     async def test_handles_markdown_fence(self, mock_cls):
         mock_client = AsyncMock()
         mock_cls.return_value = mock_client
@@ -81,7 +81,7 @@ class TestOutcomeClassifier:
         outcome = await classifier.classify("answer", "wow amazing!")
         assert outcome.signal == OutcomeSignal.DELIGHT
 
-    @patch("freudian_mind.systems.outcome.anthropic.AsyncAnthropic")
+    @patch("anima.systems.outcome.anthropic.AsyncAnthropic")
     async def test_falls_back_to_neutral(self, mock_cls):
         mock_client = AsyncMock()
         mock_cls.return_value = mock_client
@@ -92,7 +92,7 @@ class TestOutcomeClassifier:
         outcome = await classifier.classify("msg", "response")
         assert outcome.signal == OutcomeSignal.NEUTRAL
 
-    @patch("freudian_mind.systems.outcome.anthropic.AsyncAnthropic")
+    @patch("anima.systems.outcome.anthropic.AsyncAnthropic")
     async def test_stores_conversation_metadata(self, mock_cls):
         mock_client = AsyncMock()
         mock_cls.return_value = mock_client

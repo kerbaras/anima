@@ -1,6 +1,6 @@
 """Tests for data models and enums."""
 
-from freudian_mind.models import (
+from anima.models import (
     DefenseEvent,
     DefenseLevel,
     DefenseMechanism,
