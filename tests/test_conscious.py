@@ -2,21 +2,19 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from anima.config import MindConfig
 from anima.layers.conscious import ConsciousLayer
+from anima.llm import LLMResponse
 from anima.prompts.conscious_prompts import build_system_prompt
 from anima.state import SharedState
 
 
-def _mock_api_response(text: str):
-    """Create a mock Anthropic API response."""
-    mock = MagicMock()
-    mock.content = [MagicMock(text=text)]
-    return mock
+def _mock_llm_response(text: str) -> LLMResponse:
+    return LLMResponse(text=text, finish_reason="stop")
 
 
 class TestSystemPrompt:
@@ -60,114 +58,77 @@ class TestSystemPrompt:
 
 
 class TestConsciousLayer:
-    @patch("anima.layers.conscious.anthropic.AsyncAnthropic")
-    async def test_single_message_burst(self, mock_anthropic_cls, state, config):
-        mock_client = AsyncMock()
-        mock_anthropic_cls.return_value = mock_client
-
-        # First message, then [DONE]
-        mock_client.messages.create = AsyncMock(
-            side_effect=[
-                _mock_api_response("Hello there!"),
-                _mock_api_response("[DONE]"),
-            ]
-        )
+    @patch("anima.layers.conscious.complete")
+    async def test_single_message_burst(self, mock_complete, state, config):
+        mock_complete.side_effect = [
+            _mock_llm_response("Hello there!"),
+            _mock_llm_response("[DONE]"),
+        ]
 
         layer = ConsciousLayer(state, config)
-        layer.client = mock_client
         await state.create_conversation("c1")
 
         burst = await layer.respond("c1", "hi")
         assert len(burst.messages) == 1
         assert burst.messages[0] == "Hello there!"
 
-    @patch("anima.layers.conscious.anthropic.AsyncAnthropic")
-    async def test_multi_message_burst(self, mock_anthropic_cls, state, config):
-        mock_client = AsyncMock()
-        mock_anthropic_cls.return_value = mock_client
-
-        mock_client.messages.create = AsyncMock(
-            side_effect=[
-                _mock_api_response("First thought."),
-                _mock_api_response("Second thought."),
-                _mock_api_response("[DONE]"),
-            ]
-        )
+    @patch("anima.layers.conscious.complete")
+    async def test_multi_message_burst(self, mock_complete, state, config):
+        mock_complete.side_effect = [
+            _mock_llm_response("First thought."),
+            _mock_llm_response("Second thought."),
+            _mock_llm_response("[DONE]"),
+        ]
 
         layer = ConsciousLayer(state, config)
-        layer.client = mock_client
         await state.create_conversation("c1")
 
         burst = await layer.respond("c1", "tell me more")
         assert len(burst.messages) == 2
 
-    @patch("anima.layers.conscious.anthropic.AsyncAnthropic")
-    async def test_max_burst_limit(self, mock_anthropic_cls, state, config):
-        mock_client = AsyncMock()
-        mock_anthropic_cls.return_value = mock_client
+    @patch("anima.layers.conscious.complete")
+    async def test_max_burst_limit(self, mock_complete, state, config):
         config.max_burst_messages = 3
-
-        mock_client.messages.create = AsyncMock(
-            return_value=_mock_api_response("More words.")
-        )
+        mock_complete.return_value = _mock_llm_response("More words.")
 
         layer = ConsciousLayer(state, config)
-        layer.client = mock_client
         await state.create_conversation("c1")
 
         burst = await layer.respond("c1", "go on")
         assert len(burst.messages) <= 3
 
-    @patch("anima.layers.conscious.anthropic.AsyncAnthropic")
-    async def test_empty_response_fallback(self, mock_anthropic_cls, state, config):
-        mock_client = AsyncMock()
-        mock_anthropic_cls.return_value = mock_client
-
-        mock_client.messages.create = AsyncMock(
-            return_value=_mock_api_response("")
-        )
+    @patch("anima.layers.conscious.complete")
+    async def test_empty_response_fallback(self, mock_complete, state, config):
+        mock_complete.return_value = _mock_llm_response("")
 
         layer = ConsciousLayer(state, config)
-        layer.client = mock_client
         await state.create_conversation("c1")
 
         burst = await layer.respond("c1", "hello")
         assert len(burst.messages) >= 1
         assert burst.messages[0] == "I'm here."
 
-    @patch("anima.layers.conscious.anthropic.AsyncAnthropic")
-    async def test_done_stripped_from_message(self, mock_anthropic_cls, state, config):
-        mock_client = AsyncMock()
-        mock_anthropic_cls.return_value = mock_client
-
-        mock_client.messages.create = AsyncMock(
-            side_effect=[
-                _mock_api_response("Here's my answer. [DONE]"),
-                _mock_api_response("[DONE]"),
-            ]
-        )
+    @patch("anima.layers.conscious.complete")
+    async def test_done_stripped_from_message(self, mock_complete, state, config):
+        mock_complete.side_effect = [
+            _mock_llm_response("Here's my answer. [DONE]"),
+            _mock_llm_response("[DONE]"),
+        ]
 
         layer = ConsciousLayer(state, config)
-        layer.client = mock_client
         await state.create_conversation("c1")
 
         burst = await layer.respond("c1", "question")
         assert "[DONE]" not in burst.messages[0]
 
-    @patch("anima.layers.conscious.anthropic.AsyncAnthropic")
-    async def test_interrupts_consumed(self, mock_anthropic_cls, state, config):
-        mock_client = AsyncMock()
-        mock_anthropic_cls.return_value = mock_client
-
-        mock_client.messages.create = AsyncMock(
-            side_effect=[
-                _mock_api_response("OK fixing that."),
-                _mock_api_response("[DONE]"),
-            ]
-        )
+    @patch("anima.layers.conscious.complete")
+    async def test_interrupts_consumed(self, mock_complete, state, config):
+        mock_complete.side_effect = [
+            _mock_llm_response("OK fixing that."),
+            _mock_llm_response("[DONE]"),
+        ]
 
         layer = ConsciousLayer(state, config)
-        layer.client = mock_client
         await state.create_conversation("c1")
         await state.create_interrupt("c1", "You gave wrong math!")
 

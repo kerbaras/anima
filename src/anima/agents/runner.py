@@ -8,9 +8,8 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-import anthropic
-
 from ..config import MindConfig
+from ..llm import complete
 from ..state import SharedState
 from .models import AgentTask, TaskPhase, TaskStatus, ToolSpec, PHASE_ORDER
 
@@ -67,14 +66,12 @@ class TaskRunner:
         task: AgentTask,
         state: SharedState,
         config: MindConfig,
-        client: anthropic.AsyncAnthropic,
         enqueue_fn: Callable[[AgentTask], Any] | None = None,
         tool_handlers: dict[str, Callable] | None = None,
     ):
         self.task = task
         self.state = state
         self.config = config
-        self.client = client
         self._enqueue_fn = enqueue_fn  # for spawning child tasks
         self._tool_handlers = tool_handlers or {}
 
@@ -154,7 +151,8 @@ class TaskRunner:
             return await self._wait_for_children()
 
         prompt = self._build_phase_prompt()
-        model = self.task.model or self.config.default_agent_model
+        model_raw = self.task.model or self.config.default_agent_model
+        model = self.config.resolve_model(model_raw)
 
         # Only pass tools during IMPLEMENT phase
         tools = None
@@ -185,46 +183,51 @@ class TaskRunner:
     ) -> str:
         """Call the LLM, handling tool_use loops if tools are provided."""
         messages = [{"role": "user", "content": prompt}]
-        kwargs: dict[str, Any] = {
-            "model": model,
-            "max_tokens": 4000,
-            "messages": messages,
-        }
-        if tools:
-            kwargs["tools"] = tools
 
-        response = await self.client.messages.create(**kwargs)
+        response = await complete(
+            model=model,
+            max_tokens=4000,
+            messages=messages,
+            tools=tools,
+        )
 
-        # If no tools or no tool_use in response, return text
-        if not tools or response.stop_reason != "tool_use":
-            return self._extract_text(response)
+        # If no tools or no tool calls in response, return text
+        if not tools or response.finish_reason != "tool_use":
+            return response.text
 
         # Tool use loop
         max_tool_rounds = 10
         for _ in range(max_tool_rounds):
-            # Process tool calls
-            tool_results = []
-            assistant_content = response.content
-            for block in assistant_content:
-                if block.type == "tool_use":
-                    result = await self._execute_tool(block.name, block.input)
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": str(result),
-                    })
-
-            if not tool_results:
+            if not response.tool_calls:
                 break
 
-            messages.append({"role": "assistant", "content": assistant_content})
-            messages.append({"role": "user", "content": tool_results})
+            # Append assistant message with tool calls
+            assistant_msg: dict[str, Any] = {"role": "assistant"}
+            if response.text:
+                assistant_msg["content"] = response.text
+            if response.raw_tool_calls:
+                assistant_msg["tool_calls"] = response.raw_tool_calls
+            messages.append(assistant_msg)
 
-            response = await self.client.messages.create(**kwargs | {"messages": messages})
-            if response.stop_reason != "tool_use":
+            # Execute tools and append results
+            for tc in response.tool_calls:
+                result = await self._execute_tool(tc["name"], tc["input"])
+                messages.append({
+                    "role": "tool",
+                    "tool_call_id": tc["id"],
+                    "content": str(result),
+                })
+
+            response = await complete(
+                model=model,
+                max_tokens=4000,
+                messages=messages,
+                tools=tools,
+            )
+            if response.finish_reason != "tool_use":
                 break
 
-        return self._extract_text(response)
+        return response.text
 
     async def _execute_tool(self, name: str, input_data: dict) -> str:
         handler = self._tool_handlers.get(name)
@@ -237,13 +240,6 @@ class TaskRunner:
             return str(result)
         except Exception as e:
             return f"[ERROR] Tool {name} failed: {e}"
-
-    def _extract_text(self, response: anthropic.types.Message) -> str:
-        parts = []
-        for block in response.content:
-            if hasattr(block, "text"):
-                parts.append(block.text)
-        return "\n".join(parts) if parts else ""
 
     def _build_phase_prompt(self) -> str:
         template = PHASE_PROMPTS[self.task.phase]

@@ -6,8 +6,6 @@ import asyncio
 import logging
 from collections.abc import Callable
 
-import anthropic
-
 from ..config import MindConfig
 from ..state import SharedState
 from .models import AgentTask, TaskStatus
@@ -30,7 +28,6 @@ class TaskOrchestrator:
     ):
         self.state = state
         self.config = config
-        self.client = anthropic.AsyncAnthropic()
         self._tool_handlers = tool_handlers or {}
         self._queue: asyncio.Queue[AgentTask] = asyncio.Queue()
         self._semaphore = asyncio.Semaphore(config.max_concurrent_agents)
@@ -107,7 +104,6 @@ class TaskOrchestrator:
                         task=task,
                         state=self.state,
                         config=self.config,
-                        client=self.client,
                         enqueue_fn=self._enqueue_child,
                         tool_handlers=self._tool_handlers,
                     )

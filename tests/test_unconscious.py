@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from anima.agents.orchestrator import TaskOrchestrator
 from anima.config import MindConfig
 from anima.layers.unconscious import UnconsciousLayer
+from anima.llm import LLMResponse
 from anima.models import Impression, ImpressionType
 from anima.state import SharedState
 from anima.systems.defense import DefenseProfile
@@ -19,10 +20,8 @@ from anima.systems.idea_space import IdeaSpace
 from anima.systems.neurosis import RepetitionDetector
 
 
-def _mock_api_response(data: dict):
-    mock = MagicMock()
-    mock.content = [MagicMock(text=json.dumps(data))]
-    return mock
+def _mock_llm_response(data: dict) -> LLMResponse:
+    return LLMResponse(text=json.dumps(data), finish_reason="stop")
 
 
 def _make_layer(state, config):
@@ -38,8 +37,7 @@ def _make_layer(state, config):
 
 
 class TestProcessImpression:
-    @patch("anima.layers.unconscious.anthropic.AsyncAnthropic")
-    async def test_stores_new_impression(self, mock_cls, state, config):
+    async def test_stores_new_impression(self, state, config):
         layer = _make_layer(state, config)
 
         item = {
@@ -55,8 +53,7 @@ class TestProcessImpression:
         assert len(imps) == 1
         assert imps[0]["content"] == "user prefers concise answers"
 
-    @patch("anima.layers.unconscious.anthropic.AsyncAnthropic")
-    async def test_critical_correction_creates_interrupt(self, mock_cls, state, config):
+    async def test_critical_correction_creates_interrupt(self, state, config):
         layer = _make_layer(state, config)
         await state.create_conversation("c1")
 
@@ -77,8 +74,7 @@ class TestProcessImpression:
         assert len(interrupts) == 1
         assert "2+2=4" in interrupts[0]["content"]
 
-    @patch("anima.layers.unconscious.anthropic.AsyncAnthropic")
-    async def test_reinforces_similar_impression(self, mock_cls, state, config):
+    async def test_reinforces_similar_impression(self, state, config):
         layer = _make_layer(state, config)
 
         # Store existing impression with similarity key
@@ -138,34 +134,28 @@ class TestPressureCalculation:
 
 
 class TestDeepCycle:
-    @patch("anima.layers.unconscious.anthropic.AsyncAnthropic")
-    async def test_deep_cycle_processes_response(self, mock_cls, state, config):
-        mock_client = AsyncMock()
-        mock_cls.return_value = mock_client
-
-        mock_client.messages.create = AsyncMock(
-            return_value=_mock_api_response(
-                {
-                    "impressions": [
-                        {
-                            "type": "pattern",
-                            "content": "user is learning Python",
-                            "emotional_charge": 0.2,
-                            "source_conversation": "c1",
-                            "urgency": "low",
-                            "similarity_key": "python_learning",
-                        }
-                    ],
-                    "tasks_to_delegate": [],
-                }
-            )
+    @patch("anima.layers.unconscious.complete")
+    async def test_deep_cycle_processes_response(self, mock_complete, state, config):
+        mock_complete.return_value = _mock_llm_response(
+            {
+                "impressions": [
+                    {
+                        "type": "pattern",
+                        "content": "user is learning Python",
+                        "emotional_charge": 0.2,
+                        "source_conversation": "c1",
+                        "urgency": "low",
+                        "similarity_key": "python_learning",
+                    }
+                ],
+                "tasks_to_delegate": [],
+            }
         )
 
         await state.create_conversation("c1")
         await state.log_turn("c1", 1, "user", "I'm learning Python")
 
         layer = _make_layer(state, config)
-        layer.client = mock_client
 
         await layer._deep_cycle()
 

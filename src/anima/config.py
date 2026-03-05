@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from dotenv import load_dotenv
 
@@ -13,6 +13,13 @@ load_dotenv()
 @dataclass
 class MindConfig:
     # ── Models ──
+    default_model: str = "claude-sonnet-4-5-20250514"
+    model_complexity_map: dict[str, str] = field(default_factory=lambda: {
+        "low": "claude-haiku-4-5-20241022",
+        "medium": "claude-sonnet-4-5-20250514",
+        "high": "claude-opus-4-5-20250514",
+    })
+
     conscious_model: str = "claude-haiku-4-5-20241022"
     preconscious_model: str = "claude-sonnet-4-5-20250514"
     unconscious_model: str = "claude-opus-4-5-20250514"
@@ -82,6 +89,9 @@ class MindConfig:
     db_path: str = "anima.db"
 
     def __post_init__(self):
+        self.default_model = os.getenv(
+            "FREUDIAN_DEFAULT_MODEL", self.default_model
+        )
         self.conscious_model = os.getenv(
             "FREUDIAN_CONSCIOUS_MODEL", self.conscious_model
         )
@@ -98,3 +108,7 @@ class MindConfig:
         self.telegram_bot_token = os.getenv(
             "TELEGRAM_BOT_TOKEN", self.telegram_bot_token
         )
+
+    def resolve_model(self, name: str) -> str:
+        """Resolve a complexity level (low/medium/high) or pass through a model ID."""
+        return self.model_complexity_map.get(name, name)

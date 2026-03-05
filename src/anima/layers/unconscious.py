@@ -8,11 +8,10 @@ import logging
 import math
 import time
 
-import anthropic
-
 from ..agents.models import AgentTask
 from ..agents.orchestrator import TaskOrchestrator
 from ..config import MindConfig
+from ..llm import complete
 from ..models import Impression, ImpressionType
 from ..prompts.unconscious_prompts import (
     UNCONSCIOUS_SYSTEM_PROMPT,
@@ -48,7 +47,6 @@ class UnconsciousLayer:
         self.orchestrator = orchestrator
         self.defense_profile = defense_profile
         self.growth_engine = growth_engine
-        self.client = anthropic.AsyncAnthropic()
         self._cycle_count = 1
         self._running = False
         self._task: asyncio.Task | None = None
@@ -136,14 +134,14 @@ class UnconsciousLayer:
         )
 
         try:
-            response = await self.client.messages.create(
+            response = await complete(
                 model=self.config.unconscious_model,
                 max_tokens=2000,
                 system=UNCONSCIOUS_SYSTEM_PROMPT,
                 messages=[{"role": "user", "content": context}],
             )
 
-            raw = response.content[0].text.strip()
+            raw = response.text.strip()
             cleaned = raw.removeprefix("```json").removesuffix("```").strip()
             data = json.loads(cleaned)
 
