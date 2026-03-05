@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from freudian_mind.models import DefenseLevel, DefenseMechanism
-from freudian_mind.systems.defense import DefenseProfile
+from anima.models import DefenseLevel, DefenseMechanism
+from anima.systems.defense import DefenseProfile
 
 
 class TestDefenseProfile:

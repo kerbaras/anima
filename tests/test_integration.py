@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from freudian_mind.config import MindConfig
-from freudian_mind.mind import FreudianMind
+from anima.config import MindConfig
+from anima.mind import FreudianMind
 
 
 def _mock_haiku_response(text: str):
@@ -31,10 +31,10 @@ def _mock_classifier_response(signal: str = "neutral"):
 
 
 class TestFreudianMind:
-    @patch("freudian_mind.systems.outcome.anthropic.AsyncAnthropic")
-    @patch("freudian_mind.layers.conscious.anthropic.AsyncAnthropic")
-    @patch("freudian_mind.layers.unconscious.anthropic.AsyncAnthropic")
-    @patch("freudian_mind.layers.preconscious.anthropic.AsyncAnthropic")
+    @patch("anima.systems.outcome.anthropic.AsyncAnthropic")
+    @patch("anima.layers.conscious.anthropic.AsyncAnthropic")
+    @patch("anima.layers.unconscious.anthropic.AsyncAnthropic")
+    @patch("anima.layers.preconscious.anthropic.AsyncAnthropic")
     async def test_basic_chat_flow(
         self, mock_pre_cls, mock_unc_cls, mock_con_cls, mock_out_cls
     ):
@@ -71,10 +71,10 @@ class TestFreudianMind:
 
         await mind.state.close()
 
-    @patch("freudian_mind.systems.outcome.anthropic.AsyncAnthropic")
-    @patch("freudian_mind.layers.conscious.anthropic.AsyncAnthropic")
-    @patch("freudian_mind.layers.unconscious.anthropic.AsyncAnthropic")
-    @patch("freudian_mind.layers.preconscious.anthropic.AsyncAnthropic")
+    @patch("anima.systems.outcome.anthropic.AsyncAnthropic")
+    @patch("anima.layers.conscious.anthropic.AsyncAnthropic")
+    @patch("anima.layers.unconscious.anthropic.AsyncAnthropic")
+    @patch("anima.layers.preconscious.anthropic.AsyncAnthropic")
     async def test_outcome_classified_on_second_turn(
         self, mock_pre_cls, mock_unc_cls, mock_con_cls, mock_out_cls
     ):
@@ -113,10 +113,10 @@ class TestFreudianMind:
 
         await mind.state.close()
 
-    @patch("freudian_mind.systems.outcome.anthropic.AsyncAnthropic")
-    @patch("freudian_mind.layers.conscious.anthropic.AsyncAnthropic")
-    @patch("freudian_mind.layers.unconscious.anthropic.AsyncAnthropic")
-    @patch("freudian_mind.layers.preconscious.anthropic.AsyncAnthropic")
+    @patch("anima.systems.outcome.anthropic.AsyncAnthropic")
+    @patch("anima.layers.conscious.anthropic.AsyncAnthropic")
+    @patch("anima.layers.unconscious.anthropic.AsyncAnthropic")
+    @patch("anima.layers.preconscious.anthropic.AsyncAnthropic")
     async def test_turns_logged(
         self, mock_pre_cls, mock_unc_cls, mock_con_cls, mock_out_cls
     ):
@@ -150,10 +150,10 @@ class TestFreudianMind:
 
         await mind.state.close()
 
-    @patch("freudian_mind.systems.outcome.anthropic.AsyncAnthropic")
-    @patch("freudian_mind.layers.conscious.anthropic.AsyncAnthropic")
-    @patch("freudian_mind.layers.unconscious.anthropic.AsyncAnthropic")
-    @patch("freudian_mind.layers.preconscious.anthropic.AsyncAnthropic")
+    @patch("anima.systems.outcome.anthropic.AsyncAnthropic")
+    @patch("anima.layers.conscious.anthropic.AsyncAnthropic")
+    @patch("anima.layers.unconscious.anthropic.AsyncAnthropic")
+    @patch("anima.layers.preconscious.anthropic.AsyncAnthropic")
     async def test_interrupt_injection(
         self, mock_pre_cls, mock_unc_cls, mock_con_cls, mock_out_cls
     ):

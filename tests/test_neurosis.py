@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from freudian_mind.models import OutcomeSignal, ResponseOutcome
-from freudian_mind.systems.neurosis import RepetitionDetector
+from anima.models import OutcomeSignal, ResponseOutcome
+from anima.systems.neurosis import RepetitionDetector
 
 
 class TestCorrectionLoops:

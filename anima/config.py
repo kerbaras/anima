@@ -79,7 +79,7 @@ class MindConfig:
     telegram_bot_token: str = ""
 
     # ── Persistence ──
-    db_path: str = "freudian_mind.db"
+    db_path: str = "anima.db"
 
     def __post_init__(self):
         self.conscious_model = os.getenv(

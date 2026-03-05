@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from freudian_mind.models import (
+from anima.models import (
     DefenseMechanism,
     GrowthMechanism,
     OutcomeSignal,
     ResponseOutcome,
 )
-from freudian_mind.systems.defense import DefenseProfile
-from freudian_mind.systems.growth import GrowthEngine
-from freudian_mind.systems.neurosis import RepetitionDetector
+from anima.systems.defense import DefenseProfile
+from anima.systems.growth import GrowthEngine
+from anima.systems.neurosis import RepetitionDetector
 
 
 def _make_engine(

@@ -15,7 +15,7 @@ from .models import Impression, ResponseOutcome
 class SharedState:
     """Neural substrate shared across all layers and conversations."""
 
-    def __init__(self, db_path: str = "freudian_mind.db"):
+    def __init__(self, db_path: str = "anima.db"):
         self.db_path = db_path
         self._db: aiosqlite.Connection | None = None
 
