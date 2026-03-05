@@ -29,3 +29,6 @@ packages = ["src/anima"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+markers = [
+    "e2e: end-to-end tests that require ANTHROPIC_API_KEY (deselect with '-m \"not e2e\"')",
+]
