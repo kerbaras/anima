@@ -29,7 +29,7 @@ class ConsciousLayer:
         self.config = config
         self.client = anthropic.AsyncAnthropic()
 
-    async def respond(self, conv_id: str, user_message: str) -> MessageBurst:
+    async def respond(self, conv_id: str, user_message: str, bridge_context: str = "") -> MessageBurst:
         # Consume interrupts
         interrupts = await self.state.consume_interrupts(conv_id)
 
@@ -41,6 +41,7 @@ class ConsciousLayer:
             self.config.base_personality,
             promotions,
             interrupts,
+            bridge_context=bridge_context,
         )
 
         # Build conversation messages

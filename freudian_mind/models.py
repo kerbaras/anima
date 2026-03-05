@@ -225,3 +225,15 @@ class MessageBurst:
     conversation_id: str = ""
     turn_number: int = 0
     interrupts_applied: list[str] = field(default_factory=list)
+
+
+@dataclass
+class Session:
+    id: str = field(default_factory=lambda: str(uuid.uuid4())[:12])
+    user_id: str = ""
+    conversation_id: str = ""
+    started_at: float = field(default_factory=time.time)
+    last_activity: float = field(default_factory=time.time)
+    turn_count: int = 0
+    topic_summary: str = ""
+    closed: bool = False

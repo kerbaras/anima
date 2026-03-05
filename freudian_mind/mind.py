@@ -65,7 +65,7 @@ class FreudianMind:
         self.conversations[conv_id] = 0
         return conv_id
 
-    async def chat(self, conv_id: str, user_message: str) -> MessageBurst:
+    async def chat(self, conv_id: str, user_message: str, bridge_context: str = "") -> MessageBurst:
         if conv_id not in self.conversations:
             self.conversations[conv_id] = await self.state.get_turn_count(conv_id)
 
@@ -87,7 +87,7 @@ class FreudianMind:
                 self._update_last_defense_outcome(outcome)
 
         # Generate response
-        burst = await self.conscious.respond(conv_id, user_message)
+        burst = await self.conscious.respond(conv_id, user_message, bridge_context=bridge_context)
         burst.turn_number = turn
 
         # Log assistant messages

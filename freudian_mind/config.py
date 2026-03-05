@@ -62,6 +62,14 @@ class MindConfig:
     defense_maturity_target: float = 3.5
     growth_velocity_window: int = 20
 
+    # ── Session ──
+    session_timeout_minutes: int = 45
+    session_greeting: bool = True
+    cross_session_turns: int = 5
+
+    # ── Telegram ──
+    telegram_bot_token: str = ""
+
     # ── Persistence ──
     db_path: str = "freudian_mind.db"
 
@@ -76,3 +84,6 @@ class MindConfig:
             "FREUDIAN_UNCONSCIOUS_MODEL", self.unconscious_model
         )
         self.db_path = os.getenv("FREUDIAN_DB_PATH", self.db_path)
+        self.telegram_bot_token = os.getenv(
+            "TELEGRAM_BOT_TOKEN", self.telegram_bot_token
+        )
