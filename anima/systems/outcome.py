@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import json
 
-import anthropic
-
+from ..llm import complete
 from ..models import OutcomeSignal, ResponseOutcome
 from ..prompts.classifier_prompts import OUTCOME_CLASSIFIER_PROMPT
 
@@ -15,7 +14,6 @@ class OutcomeClassifier:
 
     def __init__(self, model: str = "claude-haiku-4-5-20241022"):
         self.model = model
-        self.client = anthropic.AsyncAnthropic()
 
     async def classify(
         self,
@@ -31,14 +29,14 @@ class OutcomeClassifier:
         )
 
         try:
-            response = await self.client.messages.create(
+            response = await complete(
                 model=self.model,
                 max_tokens=200,
                 system=OUTCOME_CLASSIFIER_PROMPT,
                 messages=[{"role": "user", "content": prompt}],
             )
 
-            raw = response.content[0].text.strip()
+            raw = response.text.strip()
             cleaned = raw.removeprefix("```json").removesuffix("```").strip()
             data = json.loads(cleaned)
 

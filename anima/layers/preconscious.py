@@ -6,9 +6,8 @@ import asyncio
 import json
 import math
 
-import anthropic
-
 from ..config import MindConfig
+from ..llm import complete
 from ..models import (
     DefenseLevel,
     DefenseMechanism,
@@ -37,7 +36,6 @@ class PreconsciousLayer:
         self.idea_space = idea_space
         self.defense_profile = defense_profile
         self.config = config
-        self.client = anthropic.AsyncAnthropic()
         self._running = False
         self._task: asyncio.Task | None = None
 
@@ -127,14 +125,14 @@ class PreconsciousLayer:
                 )
 
         try:
-            response = await self.client.messages.create(
+            response = await complete(
                 model=self.config.preconscious_model,
                 max_tokens=800,
                 system=DEFENSE_SELECTOR_PROMPT,
                 messages=[{"role": "user", "content": "\n".join(context_parts)}],
             )
 
-            raw = response.content[0].text.strip()
+            raw = response.text.strip()
             cleaned = raw.removeprefix("```json").removesuffix("```").strip()
             data = json.loads(cleaned)
 

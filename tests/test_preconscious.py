@@ -3,53 +3,46 @@
 from __future__ import annotations
 
 import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from anima.config import MindConfig
 from anima.layers.preconscious import PreconsciousLayer
+from anima.llm import LLMResponse
 from anima.models import Impression, ImpressionType
 from anima.state import SharedState
 from anima.systems.defense import DefenseProfile
 from anima.systems.idea_space import IdeaSpace
 
 
-def _mock_defense_response(data: dict):
-    mock = MagicMock()
-    mock.content = [MagicMock(text=json.dumps(data))]
-    return mock
+def _mock_defense_response(data: dict) -> LLMResponse:
+    return LLMResponse(text=json.dumps(data), finish_reason="stop")
 
 
 class TestDefenseApplication:
-    @patch("anima.layers.preconscious.anthropic.AsyncAnthropic")
-    async def test_sublimation_promotes_as_tool(self, mock_cls, state, config):
-        mock_client = AsyncMock()
-        mock_cls.return_value = mock_client
-
-        mock_client.messages.create = AsyncMock(
-            return_value=_mock_defense_response(
-                {
-                    "impression_id": "imp1",
-                    "selected_defense": "sublimation",
-                    "defense_level": "mature",
-                    "action": "Transform into code formatting tool",
-                    "promotion": {
-                        "type": "tool",
-                        "key": "code_formatter",
-                        "content": {"name": "format_code", "description": "Formats code"},
-                        "confidence": 0.9,
-                    },
-                    "reason": "Productive transformation",
-                    "growth_aware": False,
-                }
-            )
+    @patch("anima.layers.preconscious.complete")
+    async def test_sublimation_promotes_as_tool(self, mock_complete, state, config):
+        mock_complete.return_value = _mock_defense_response(
+            {
+                "impression_id": "imp1",
+                "selected_defense": "sublimation",
+                "defense_level": "mature",
+                "action": "Transform into code formatting tool",
+                "promotion": {
+                    "type": "tool",
+                    "key": "code_formatter",
+                    "content": {"name": "format_code", "description": "Formats code"},
+                    "confidence": 0.9,
+                },
+                "reason": "Productive transformation",
+                "growth_aware": False,
+            }
         )
 
         idea_space = IdeaSpace(state)
         profile = DefenseProfile()
         layer = PreconsciousLayer(state, idea_space, profile, config)
-        layer.client = mock_client
 
         # Store an impression
         imp = Impression(
@@ -73,29 +66,23 @@ class TestDefenseApplication:
         active = await state.get_active_impressions()
         assert len(active) == 0
 
-    @patch("anima.layers.preconscious.anthropic.AsyncAnthropic")
-    async def test_repression_marks_repressed(self, mock_cls, state, config):
-        mock_client = AsyncMock()
-        mock_cls.return_value = mock_client
-
-        mock_client.messages.create = AsyncMock(
-            return_value=_mock_defense_response(
-                {
-                    "impression_id": "imp1",
-                    "selected_defense": "repression",
-                    "defense_level": "neurotic",
-                    "action": "Push back to buffer",
-                    "promotion": None,
-                    "reason": "Not ready to surface",
-                    "growth_aware": False,
-                }
-            )
+    @patch("anima.layers.preconscious.complete")
+    async def test_repression_marks_repressed(self, mock_complete, state, config):
+        mock_complete.return_value = _mock_defense_response(
+            {
+                "impression_id": "imp1",
+                "selected_defense": "repression",
+                "defense_level": "neurotic",
+                "action": "Push back to buffer",
+                "promotion": None,
+                "reason": "Not ready to surface",
+                "growth_aware": False,
+            }
         )
 
         idea_space = IdeaSpace(state)
         profile = DefenseProfile()
         layer = PreconsciousLayer(state, idea_space, profile, config)
-        layer.client = mock_client
 
         imp = Impression(id="imp1", content="test", pressure=0.8)
         await state.store_impression(imp)
@@ -106,29 +93,23 @@ class TestDefenseApplication:
         active = await state.get_active_impressions()
         assert len(active) == 0  # Repressed = filtered out
 
-    @patch("anima.layers.preconscious.anthropic.AsyncAnthropic")
-    async def test_rationalization_reduces_pressure(self, mock_cls, state, config):
-        mock_client = AsyncMock()
-        mock_cls.return_value = mock_client
-
-        mock_client.messages.create = AsyncMock(
-            return_value=_mock_defense_response(
-                {
-                    "impression_id": "imp1",
-                    "selected_defense": "rationalization",
-                    "defense_level": "neurotic",
-                    "action": "Topic is ambiguous",
-                    "promotion": None,
-                    "reason": "Justified dismissal",
-                    "growth_aware": False,
-                }
-            )
+    @patch("anima.layers.preconscious.complete")
+    async def test_rationalization_reduces_pressure(self, mock_complete, state, config):
+        mock_complete.return_value = _mock_defense_response(
+            {
+                "impression_id": "imp1",
+                "selected_defense": "rationalization",
+                "defense_level": "neurotic",
+                "action": "Topic is ambiguous",
+                "promotion": None,
+                "reason": "Justified dismissal",
+                "growth_aware": False,
+            }
         )
 
         idea_space = IdeaSpace(state)
         profile = DefenseProfile()
         layer = PreconsciousLayer(state, idea_space, profile, config)
-        layer.client = mock_client
 
         imp = Impression(id="imp1", content="test", pressure=0.8)
         await state.store_impression(imp)
@@ -140,29 +121,23 @@ class TestDefenseApplication:
         assert len(active) == 1
         assert active[0]["pressure"] < 0.8  # Reduced by 30%
 
-    @patch("anima.layers.preconscious.anthropic.AsyncAnthropic")
-    async def test_intellectualization_stores_as_memory(self, mock_cls, state, config):
-        mock_client = AsyncMock()
-        mock_cls.return_value = mock_client
-
-        mock_client.messages.create = AsyncMock(
-            return_value=_mock_defense_response(
-                {
-                    "impression_id": "imp1",
-                    "selected_defense": "intellectualization",
-                    "defense_level": "neurotic",
-                    "action": "Store as neutral fact",
-                    "promotion": None,
-                    "reason": "Acknowledge without urgency",
-                    "growth_aware": False,
-                }
-            )
+    @patch("anima.layers.preconscious.complete")
+    async def test_intellectualization_stores_as_memory(self, mock_complete, state, config):
+        mock_complete.return_value = _mock_defense_response(
+            {
+                "impression_id": "imp1",
+                "selected_defense": "intellectualization",
+                "defense_level": "neurotic",
+                "action": "Store as neutral fact",
+                "promotion": None,
+                "reason": "Acknowledge without urgency",
+                "growth_aware": False,
+            }
         )
 
         idea_space = IdeaSpace(state)
         profile = DefenseProfile()
         layer = PreconsciousLayer(state, idea_space, profile, config)
-        layer.client = mock_client
 
         imp = Impression(id="imp1", content="user is frustrated", pressure=0.8)
         await state.store_impression(imp)
@@ -174,29 +149,23 @@ class TestDefenseApplication:
         memories = await state.get_active_promotions(type_filter="memory")
         assert len(memories) >= 1
 
-    @patch("anima.layers.preconscious.anthropic.AsyncAnthropic")
-    async def test_denial_drops_impression(self, mock_cls, state, config):
-        mock_client = AsyncMock()
-        mock_cls.return_value = mock_client
-
-        mock_client.messages.create = AsyncMock(
-            return_value=_mock_defense_response(
-                {
-                    "impression_id": "imp1",
-                    "selected_defense": "denial",
-                    "defense_level": "pathological",
-                    "action": "Completely ignore",
-                    "promotion": None,
-                    "reason": "Denial",
-                    "growth_aware": False,
-                }
-            )
+    @patch("anima.layers.preconscious.complete")
+    async def test_denial_drops_impression(self, mock_complete, state, config):
+        mock_complete.return_value = _mock_defense_response(
+            {
+                "impression_id": "imp1",
+                "selected_defense": "denial",
+                "defense_level": "pathological",
+                "action": "Completely ignore",
+                "promotion": None,
+                "reason": "Denial",
+                "growth_aware": False,
+            }
         )
 
         idea_space = IdeaSpace(state)
         profile = DefenseProfile()
         layer = PreconsciousLayer(state, idea_space, profile, config)
-        layer.client = mock_client
 
         imp = Impression(id="imp1", content="test", pressure=0.8)
         await state.store_impression(imp)
@@ -207,33 +176,27 @@ class TestDefenseApplication:
         active = await state.get_active_impressions()
         assert len(active) == 0  # Denied = dropped
 
-    @patch("anima.layers.preconscious.anthropic.AsyncAnthropic")
-    async def test_defense_event_logged(self, mock_cls, state, config):
-        mock_client = AsyncMock()
-        mock_cls.return_value = mock_client
-
-        mock_client.messages.create = AsyncMock(
-            return_value=_mock_defense_response(
-                {
-                    "impression_id": "imp1",
-                    "selected_defense": "humor",
-                    "defense_level": "mature",
-                    "action": "Acknowledge with lightness",
-                    "promotion": {
-                        "key": "humor_imp1",
-                        "content": {"instruction": "Be self-aware about this"},
-                        "confidence": 0.7,
-                    },
-                    "reason": "Humor is appropriate",
-                    "growth_aware": True,
-                }
-            )
+    @patch("anima.layers.preconscious.complete")
+    async def test_defense_event_logged(self, mock_complete, state, config):
+        mock_complete.return_value = _mock_defense_response(
+            {
+                "impression_id": "imp1",
+                "selected_defense": "humor",
+                "defense_level": "mature",
+                "action": "Acknowledge with lightness",
+                "promotion": {
+                    "key": "humor_imp1",
+                    "content": {"instruction": "Be self-aware about this"},
+                    "confidence": 0.7,
+                },
+                "reason": "Humor is appropriate",
+                "growth_aware": True,
+            }
         )
 
         idea_space = IdeaSpace(state)
         profile = DefenseProfile()
         layer = PreconsciousLayer(state, idea_space, profile, config)
-        layer.client = mock_client
 
         imp = Impression(id="imp1", content="test", pressure=0.8)
         await state.store_impression(imp)

@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import json
 
-import anthropic
-
 from ..config import MindConfig
+from ..llm import complete
 from ..models import MessageBurst
 from ..prompts.conscious_prompts import (
     CONTINUATION_PROMPT,
@@ -27,7 +26,6 @@ class ConsciousLayer:
     def __init__(self, state: SharedState, config: MindConfig):
         self.state = state
         self.config = config
-        self.client = anthropic.AsyncAnthropic()
 
     async def respond(self, conv_id: str, user_message: str, bridge_context: str = "") -> MessageBurst:
         # Consume interrupts
@@ -88,14 +86,14 @@ class ConsciousLayer:
                         {"role": "user", "content": CONTINUATION_PROMPT}
                     )
 
-            response = await self.client.messages.create(
+            response = await complete(
                 model=self.config.conscious_model,
                 max_tokens=self.config.burst_max_tokens,
                 system=system_prompt,
                 messages=conversation,
             )
 
-            text = response.content[0].text.strip()
+            text = response.text.strip()
 
             if "[DONE]" in text or text == "":
                 break
