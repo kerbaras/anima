@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import math
 import time
 
 import anthropic
 
+from ..agents.models import AgentTask
+from ..agents.orchestrator import TaskOrchestrator
 from ..config import MindConfig
 from ..models import Impression, ImpressionType
 from ..prompts.unconscious_prompts import (
@@ -16,13 +19,18 @@ from ..prompts.unconscious_prompts import (
     build_unconscious_context,
 )
 from ..state import SharedState
+from ..systems.defense import DefenseProfile
+from ..systems.growth import GrowthEngine
 from ..systems.idea_space import IdeaSpace
+
+logger = logging.getLogger(__name__)
 
 
 class UnconsciousLayer:
     """
     Opus: single brain across all conversations. Demand-aware.
     Only does heavy processing when there's actual work to do.
+    Each check is independent — multiple can fire per cycle.
     """
 
     def __init__(
@@ -30,15 +38,20 @@ class UnconsciousLayer:
         state: SharedState,
         idea_space: IdeaSpace,
         config: MindConfig,
+        orchestrator: TaskOrchestrator,
+        defense_profile: DefenseProfile,
+        growth_engine: GrowthEngine,
     ):
         self.state = state
         self.idea_space = idea_space
         self.config = config
+        self.orchestrator = orchestrator
+        self.defense_profile = defense_profile
+        self.growth_engine = growth_engine
         self.client = anthropic.AsyncAnthropic()
         self._cycle_count = 1
         self._running = False
         self._task: asyncio.Task | None = None
-        self._subagent_semaphore = asyncio.Semaphore(3)
         self._health_report: dict | None = None
 
     def set_health_report(self, report: dict):
@@ -57,20 +70,41 @@ class UnconsciousLayer:
             except asyncio.CancelledError:
                 pass
 
+    # ── Optimized loop: independent checks, multiple can fire per cycle ──
+
     async def _run_loop(self):
         while self._running:
             try:
-                demand = await self._assess_demand()
+                did_work = False
 
-                if demand == "DEEP_ANALYSIS":
+                # 1. Tasks to schedule? (cheapest — just a DB query + queue put)
+                queued = await self.state.get_queued_agent_tasks()
+                if queued:
+                    for task in queued:
+                        await self.orchestrator.enqueue(task)
+                    did_work = True
+
+                # 2. Recent turns? → deep analysis (expensive — Opus call)
+                new_turns = await self.state.get_all_recent_turns(
+                    since_seconds=self.config.unconscious_interval
+                )
+                if new_turns:
                     await self._deep_cycle()
-                elif demand == "FEEDBACK_INTEGRATION":
-                    pass  # Handled by growth engine
-                elif demand == "SUBAGENT_DISPATCH":
-                    await self._dispatch_tasks()
-                elif demand == "GROWTH_ENGINE":
-                    pass  # Triggered by mind.py
-                else:
+                    did_work = True
+
+                # 3. Pending outcomes? → feedback integration
+                pending_outcomes = await self.state.get_pending_outcomes()
+                if pending_outcomes:
+                    await self._integrate_feedback(pending_outcomes)
+                    did_work = True
+
+                # 4. Agent too old? → attempt to grow
+                if self._cycle_count % self.config.growth_cycle_frequency == 0:
+                    await self._growth_cycle()
+                    did_work = True
+
+                # Nothing to do — decay stale pressures
+                if not did_work:
                     self._apply_urgency_decay()
 
                 self._cycle_count += 1
@@ -79,26 +113,10 @@ class UnconsciousLayer:
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                print(f"[UNCONSCIOUS] Error: {e}")
+                logger.error("[UNCONSCIOUS] Error: %s", e)
                 await asyncio.sleep(self.config.unconscious_interval)
 
-    async def _assess_demand(self) -> str:
-        new_turns = await self.state.get_all_recent_turns(
-            since_seconds=self.config.unconscious_interval
-        )
-        pending_outcomes = await self.state.get_pending_outcomes()
-        pending_tasks = await self.state.get_pending_tasks()
-
-        if new_turns:
-            return "DEEP_ANALYSIS"
-        elif pending_outcomes:
-            return "FEEDBACK_INTEGRATION"
-        elif pending_tasks:
-            return "SUBAGENT_DISPATCH"
-        elif self._cycle_count % self.config.growth_cycle_frequency == 0:
-            return "GROWTH_ENGINE"
-        else:
-            return "IDLE"
+    # ── Deep analysis (Opus) ─────────────────────────────────────────────
 
     async def _deep_cycle(self):
         recent_turns = await self.state.get_all_recent_turns(since_seconds=120)
@@ -136,7 +154,54 @@ class UnconsciousLayer:
                 await self._delegate_task(task)
 
         except Exception as e:
-            print(f"[UNCONSCIOUS] Deep cycle failed: {e}")
+            logger.error("[UNCONSCIOUS] Deep cycle failed: %s", e)
+
+    # ── Feedback integration ─────────────────────────────────────────────
+
+    async def _integrate_feedback(self, outcomes: list[dict]):
+        """Connect outcome signals to defense profile."""
+        for outcome in outcomes:
+            signal = outcome.get("signal", "neutral")
+            defense = outcome.get("defense_applied", "")
+            if not defense:
+                continue
+            try:
+                from ..models import DefenseMechanism
+                d = DefenseMechanism(defense)
+                is_positive = signal in ("positive", "delight", "neutral")
+                self.defense_profile.record_defense_use(d, is_positive)
+            except (ValueError, KeyError):
+                pass
+
+    # ── Growth cycle ─────────────────────────────────────────────────────
+
+    async def _growth_cycle(self):
+        """Run the therapeutic cycle and persist growth events."""
+        defense_log = await self.state.get_recent_defense_events(limit=50)
+        repressions = [
+            imp for imp in await self.state.get_active_impressions()
+            if imp.get("repressed")
+        ]
+        # Also include explicitly repressed impressions
+        all_impressions = await self.state.get_all_impressions_with_embeddings()
+        repressed = [
+            imp for imp in all_impressions
+            if imp.get("repressed")
+        ]
+        repressions.extend(repressed)
+
+        actions = self.growth_engine.run_therapeutic_cycle(defense_log, repressions)
+
+        for action in actions:
+            await self.state.log_growth_event(
+                mechanism=action.get("mechanism", "insight"),
+                description=action.get("description", ""),
+                target_defense=action.get("old_defense", ""),
+                target_pattern=action.get("target_pattern", ""),
+                recommendation=action.get("recommendation", ""),
+            )
+
+    # ── Impression processing ────────────────────────────────────────────
 
     async def _process_impression(self, item: dict):
         imp = Impression(
@@ -208,9 +273,10 @@ class UnconsciousLayer:
         base = {"low": 0.15, "medium": 0.3, "high": 0.5, "critical": 0.9}
         return base.get(urgency, 0.15) + abs(imp.emotional_charge) * 0.3
 
+    # ── Urgency decay ────────────────────────────────────────────────────
+
     def _apply_urgency_decay(self):
         """Logarithmic urgency decay for stale impressions."""
-        # This runs synchronously — we schedule the async work
         asyncio.ensure_future(self._async_urgency_decay())
 
     async def _async_urgency_decay(self):
@@ -224,32 +290,12 @@ class UnconsciousLayer:
             if abs(new_pressure - imp["pressure"]) > 0.001:
                 await self.state.update_impression_pressure(imp["id"], new_pressure)
 
+    # ── Task delegation (now creates AgentTask for orchestrator) ─────────
+
     async def _delegate_task(self, task_data: dict):
-        task_id = await self.state.create_task(
-            conv_id=task_data.get("conversation_id", ""),
+        task = AgentTask(
+            conversation_id=task_data.get("conversation_id", ""),
             description=task_data.get("description", ""),
-            prompt=task_data.get("prompt", ""),
+            model=task_data.get("model", ""),
         )
-
-    async def _dispatch_tasks(self):
-        pending = await self.state.get_pending_tasks()
-        for task in pending[:3]:
-            asyncio.create_task(self._run_subagent(task))
-
-    async def _run_subagent(self, task: dict):
-        async with self._subagent_semaphore:
-            task_id = task["id"]
-            await self.state.update_task(task_id, "running")
-            try:
-                response = await asyncio.wait_for(
-                    self.client.messages.create(
-                        model=self.config.subagent_model,
-                        max_tokens=2000,
-                        messages=[{"role": "user", "content": task["prompt"]}],
-                    ),
-                    timeout=120.0,
-                )
-                result = response.content[0].text
-                await self.state.update_task(task_id, "complete", result)
-            except Exception as e:
-                await self.state.update_task(task_id, "failed", str(e))
+        await self.orchestrator.enqueue(task)

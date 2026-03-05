@@ -27,6 +27,7 @@ class PromotionType(str, Enum):
 
 
 class SubAgentStatus(str, Enum):
+    """Deprecated: use freudian_mind.agents.models.TaskStatus instead."""
     PENDING = "pending"
     RUNNING = "running"
     COMPLETE = "complete"
@@ -160,6 +161,7 @@ class Promotion:
 
 @dataclass
 class SubAgentTask:
+    """Deprecated: use freudian_mind.agents.models.AgentTask instead."""
     id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
     conversation_id: str = ""
     description: str = ""

@@ -62,6 +62,14 @@ class MindConfig:
     defense_maturity_target: float = 3.5
     growth_velocity_window: int = 20
 
+    # ── Agent Tasks ──
+    max_concurrent_agents: int = 3
+    default_agent_model: str = "claude-sonnet-4-5-20250514"
+    max_task_depth: int = 3
+    max_subtasks_per_task: int = 5
+    agent_task_timeout: float = 300.0  # per-phase timeout in seconds
+    max_task_retries: int = 2
+
     # ── Session ──
     session_timeout_minutes: int = 45
     session_greeting: bool = True
@@ -84,6 +92,9 @@ class MindConfig:
             "FREUDIAN_UNCONSCIOUS_MODEL", self.unconscious_model
         )
         self.db_path = os.getenv("FREUDIAN_DB_PATH", self.db_path)
+        self.default_agent_model = os.getenv(
+            "FREUDIAN_AGENT_MODEL", self.default_agent_model
+        )
         self.telegram_bot_token = os.getenv(
             "TELEGRAM_BOT_TOKEN", self.telegram_bot_token
         )

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 
+from .agents.orchestrator import TaskOrchestrator
 from .config import MindConfig
 from .layers.conscious import ConsciousLayer
 from .layers.preconscious import PreconsciousLayer
@@ -39,8 +40,14 @@ class FreudianMind:
         )
         self.outcome_classifier = OutcomeClassifier(self.config.classifier_model)
 
+        self.orchestrator = TaskOrchestrator(self.state, self.config)
         self.unconscious = UnconsciousLayer(
-            self.state, self.idea_space, self.config
+            self.state,
+            self.idea_space,
+            self.config,
+            self.orchestrator,
+            self.defense_profile,
+            self.growth_engine,
         )
         self.preconscious = PreconsciousLayer(
             self.state, self.idea_space, self.defense_profile, self.config
@@ -51,11 +58,13 @@ class FreudianMind:
     async def start(self):
         await self.state.initialize()
         await asyncio.gather(
+            self.orchestrator.start(),
             self.unconscious.start(),
             self.preconscious.start(),
         )
 
     async def stop(self):
+        await self.orchestrator.stop()
         await self.unconscious.stop()
         await self.preconscious.stop()
         await self.state.close()
