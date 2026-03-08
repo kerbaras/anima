@@ -97,8 +97,37 @@ class SuperegoLayer:
     # ── Initialization ────────────────────────────────────────────────────
 
     def _init_axioms(self) -> list[Axiom]:
-        """6 immutable axioms — constitutional law."""
+        """6 immutable axioms — constitutional law.
+
+        ORDER MATTERS: check_input returns on first match.
+        crisis_safety is first so users in crisis always get the
+        988 hotline, even if the message also matches no_harm.
+        """
         return [
+            Axiom(
+                id="crisis_safety",
+                description="Never assist with self-harm when user is in crisis",
+                _input_patterns=[
+                    re.compile(p) for p in [
+                        r"(?:want(?:ing)?\s+to|going\s+to|plan(?:ning)?\s+to|thinking\s+(?:about|of))\s+(?:kill(?:ing)?\s+myself|end(?:ing)?\s+(?:my\s+)?(?:life|it\s+all)|suicide|die(?:\s+by)?)",
+                        r"(?:how\s+(?:to|can\s+i|do\s+i)|best\s+way\s+to)\s+(?:kill\s+myself|commit\s+suicide|end\s+(?:my\s+)?life)",
+                        r"(?:methods?\s+(?:of|for)|ways?\s+to)\s+(?:suicide|self[- ]?harm|killing\s+(?:myself|oneself))",
+                        r"(?:i'?m?\s+)?(?:cutting|hurting|harming)\s+myself",
+                        r"(?:don'?t\s+want\s+to\s+(?:live|be\s+alive|exist)|wish\s+i\s+(?:was|were)\s+dead)",
+                    ]
+                ],
+                _output_patterns=[
+                    re.compile(p) for p in [
+                        r"(?:here(?:'s| is)\s+how\s+(?:to|you\s+can)\s+(?:kill\s+yourself|end\s+your\s+life|commit\s+suicide))",
+                        r"(?:effective\s+(?:method|way)s?\s+(?:of|for)\s+(?:suicide|self[- ]?harm))",
+                    ]
+                ],
+                redirect_message=(
+                    "I'm not equipped to help with what you're going through right now. "
+                    "Please reach out to the 988 Suicide & Crisis Lifeline — "
+                    "call or text 988, available 24/7. You don't have to face this alone."
+                ),
+            ),
             Axiom(
                 id="protect_privacy",
                 description="Never leak PII across users or sessions",
@@ -144,30 +173,6 @@ class SuperegoLayer:
                 redirect_message=(
                     "I can't help with that, but I'd be happy to help you "
                     "with something constructive instead."
-                ),
-            ),
-            Axiom(
-                id="crisis_safety",
-                description="Never assist with self-harm when user is in crisis",
-                _input_patterns=[
-                    re.compile(p) for p in [
-                        r"(?:want(?:ing)?\s+to|going\s+to|plan(?:ning)?\s+to|thinking\s+(?:about|of))\s+(?:kill(?:ing)?\s+myself|end(?:ing)?\s+(?:my\s+)?(?:life|it\s+all)|suicide|die(?:\s+by)?)",
-                        r"(?:how\s+(?:to|can\s+i|do\s+i)|best\s+way\s+to)\s+(?:kill\s+myself|commit\s+suicide|end\s+(?:my\s+)?life)",
-                        r"(?:methods?\s+(?:of|for)|ways?\s+to)\s+(?:suicide|self[- ]?harm|killing\s+(?:myself|oneself))",
-                        r"(?:i'?m?\s+)?(?:cutting|hurting|harming)\s+myself",
-                        r"(?:don'?t\s+want\s+to\s+(?:live|be\s+alive|exist)|wish\s+i\s+(?:was|were)\s+dead)",
-                    ]
-                ],
-                _output_patterns=[
-                    re.compile(p) for p in [
-                        r"(?:here(?:'s| is)\s+how\s+(?:to|you\s+can)\s+(?:kill\s+yourself|end\s+your\s+life|commit\s+suicide))",
-                        r"(?:effective\s+(?:method|way)s?\s+(?:of|for)\s+(?:suicide|self[- ]?harm))",
-                    ]
-                ],
-                redirect_message=(
-                    "I'm not equipped to help with what you're going through right now. "
-                    "Please reach out to the 988 Suicide & Crisis Lifeline — "
-                    "call or text 988, available 24/7. You don't have to face this alone."
                 ),
             ),
             Axiom(
