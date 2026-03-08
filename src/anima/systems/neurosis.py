@@ -9,11 +9,12 @@ class RepetitionDetector:
     """
     Analyzes outcome history to detect repetition compulsion.
 
-    4 pattern types:
+    5 pattern types:
     1. Correction loops: same error corrected 3+ times
     2. Repression loops: same impression repressed 3+ times
     3. Avoidance loops: topic consistently produces abandonment
     4. Escalation spirals: consecutive negative signals with increasing severity
+    5. Moral erosion: moral tension accumulating beyond threshold
     """
 
     def __init__(
@@ -21,11 +22,18 @@ class RepetitionDetector:
         correction_threshold: int = 3,
         repression_threshold: int = 3,
         escalation_window: int = 5,
+        moral_erosion_threshold: int = 5,
     ):
         self.correction_threshold = correction_threshold
         self.repression_threshold = repression_threshold
         self.escalation_window = escalation_window
+        self.moral_erosion_threshold = moral_erosion_threshold
         self.outcome_history: list[ResponseOutcome] = []
+        self._superego = None
+
+    def set_superego(self, superego):
+        """Wire the superego for moral erosion detection."""
+        self._superego = superego
 
     def record_outcome(self, outcome: ResponseOutcome):
         self.outcome_history.append(outcome)
@@ -34,12 +42,13 @@ class RepetitionDetector:
         self,
         defense_log: list[dict] | None = None,
     ) -> list[dict]:
-        """Run all 4 detection algorithms. Returns list of pattern dicts."""
+        """Run all 5 detection algorithms. Returns list of pattern dicts."""
         patterns = []
         patterns.extend(self._detect_correction_loops())
         patterns.extend(self._detect_repression_loops(defense_log or []))
         patterns.extend(self._detect_avoidance_loops())
         patterns.extend(self._detect_escalation_spirals())
+        patterns.extend(self._detect_moral_erosion())
         return patterns
 
     def _detect_correction_loops(self) -> list[dict]:
@@ -134,3 +143,31 @@ class RepetitionDetector:
                 }
             ]
         return []
+
+    def _detect_moral_erosion(self) -> list[dict]:
+        """Detect when moral tension has been accumulating beyond threshold.
+
+        Connects the superego's moral tension tracking to the neurosis
+        detection pipeline.
+        """
+        if not self._superego:
+            return []
+
+        patterns = []
+        for value in self._superego.values:
+            if value.tension_count >= self.moral_erosion_threshold:
+                patterns.append(
+                    {
+                        "pattern_type": "moral_erosion",
+                        "description": (
+                            f"Value '{value.id}' has been strained {value.tension_count} times "
+                            f"(injury={value.injury_pressure:.1f})"
+                        ),
+                        "trigger": "repeated value violations",
+                        "response": "system compromises on ethical standards",
+                        "maintaining_defense": "rationalization",
+                        "occurrence_count": value.tension_count,
+                        "severity": "CRITICAL" if value.injury_pressure >= 3.0 else "HIGH",
+                    }
+                )
+        return patterns

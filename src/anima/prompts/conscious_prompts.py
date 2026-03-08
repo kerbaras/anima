@@ -24,6 +24,7 @@ def build_system_prompt(
     promotions: list[dict],
     interrupts: list[dict],
     bridge_context: str = "",
+    value_directives: list[dict] | None = None,
 ) -> str:
     """Assemble the conscious layer's system prompt from promotions and interrupts."""
     parts = [base_personality]
@@ -49,6 +50,12 @@ def build_system_prompt(
         for d in directives:
             content = json.loads(d["content"]) if isinstance(d["content"], str) else d["content"]
             parts.append(f"- {content.get('instruction', str(content))}")
+
+    # Superego value directives (always active)
+    if value_directives:
+        parts.append("\nEthical guidelines (always active):")
+        for v in value_directives:
+            parts.append(f"- {v['instruction']}")
 
     # Interrupts (intrusive thoughts)
     if interrupts:

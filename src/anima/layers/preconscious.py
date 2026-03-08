@@ -98,6 +98,8 @@ class PreconsciousLayer:
         recent_defense_events = await self.state.get_recent_defense_events(10)
         active_patterns = await self.state.get_active_patterns()
 
+        is_moral_tension = candidate.get("type") == "moral_tension"
+
         context_parts = [
             "=== IMPRESSION TO EVALUATE ===",
             f"ID: {candidate['id']}",
@@ -107,6 +109,14 @@ class PreconsciousLayer:
             f"Emotional charge: {candidate.get('emotional_charge', 0):+.2f}",
             f"Reinforced: {candidate.get('times_reinforced', 0)}x",
         ]
+
+        if is_moral_tension:
+            context_parts.append(
+                "\n⚡ SUPEREGO WEIGHT: This is a MORAL_TENSION impression. "
+                "It carries superego authority. NEVER repress or deny moral tension. "
+                "Prefer mature defenses: sublimation (→ directive), anticipation, altruism. "
+                "The goal is to restore value alignment, not suppress the signal."
+            )
 
         context_parts.append("\n=== SYSTEM HEALTH ===")
         context_parts.append(json.dumps(health, indent=2))

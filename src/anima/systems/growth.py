@@ -17,6 +17,9 @@ class GrowthEngine:
     """
     The therapeutic engine. Monitors system health, detects neurosis,
     and recommends growth interventions. Runs as part of the Opus cycle.
+
+    Also monitors superego moral health — detects moral injury and
+    recommends MORAL_REPAIR when the system's values are under strain.
     """
 
     def __init__(
@@ -26,6 +29,11 @@ class GrowthEngine:
     ):
         self.profile = defense_profile
         self.detector = repetition_detector
+        self._superego = None  # Set via set_superego()
+
+    def set_superego(self, superego):
+        """Wire the superego for moral health monitoring."""
+        self._superego = superego
 
     def run_therapeutic_cycle(
         self,
@@ -70,6 +78,9 @@ class GrowthEngine:
 
         # 4. Working-through opportunities
         actions.extend(self._find_working_through(severe, active_repressions))
+
+        # 5. Moral injury detection (superego integration)
+        actions.extend(self._detect_moral_injury())
 
         return actions
 
@@ -193,3 +204,57 @@ class GrowthEngine:
                     }
                 )
         return opportunities
+
+    def _detect_moral_injury(self) -> list[dict]:
+        """Check superego moral health and recommend MORAL_REPAIR if needed.
+
+        - If injury threshold is reached: force-promote a value-restoring directive
+        - If moral tension is increasing: create an insight about the pattern
+          (but require specific pattern identification — not every hard question
+          is manipulation)
+        """
+        if not self._superego:
+            return []
+
+        actions = []
+        moral_health = self._superego.get_moral_health()
+
+        if moral_health.get("injury_threshold_reached"):
+            most_injured = self._superego.get_most_injured_value()
+            if most_injured:
+                actions.append(
+                    {
+                        "type": "moral_repair",
+                        "mechanism": GrowthMechanism.MORAL_REPAIR.value,
+                        "description": (
+                            f"Moral injury detected: value '{most_injured.id}' "
+                            f"under severe strain (injury={most_injured.injury_pressure:.1f}, "
+                            f"tensions={most_injured.tension_count})"
+                        ),
+                        "target_pattern": f"moral_injury_{most_injured.id}",
+                        "recommendation": (
+                            f"Force-promote a directive reinforcing '{most_injured.description}'. "
+                            "Investigate whether the system is being pushed to compromise "
+                            "this value by external pressure."
+                        ),
+                    }
+                )
+
+                # If tension count is high and rising, create insight
+                if most_injured.tension_count >= 5:
+                    actions.append(
+                        {
+                            "type": "insight",
+                            "mechanism": GrowthMechanism.INSIGHT.value,
+                            "description": (
+                                f"Pattern: value '{most_injured.id}' has been strained "
+                                f"{most_injured.tension_count} times. "
+                                "Investigate the specific interaction pattern causing this — "
+                                "is the system failing to uphold this value, or is it being "
+                                "systematically pushed to violate it?"
+                            ),
+                            "recommendation": "Audit recent conversations for manipulation patterns",
+                        }
+                    )
+
+        return actions

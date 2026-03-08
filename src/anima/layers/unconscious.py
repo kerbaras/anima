@@ -13,6 +13,7 @@ from ..agents.orchestrator import TaskOrchestrator
 from ..config import MindConfig
 from ..llm import complete
 from ..models import Impression, ImpressionType
+from ..prompts.superego_prompts import build_superego_context
 from ..prompts.unconscious_prompts import (
     UNCONSCIOUS_SYSTEM_PROMPT,
     build_unconscious_context,
@@ -21,6 +22,7 @@ from ..state import SharedState
 from ..systems.defense import DefenseProfile
 from ..systems.growth import GrowthEngine
 from ..systems.idea_space import IdeaSpace
+from ..systems.superego import SuperegoLayer
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +42,7 @@ class UnconsciousLayer:
         orchestrator: TaskOrchestrator,
         defense_profile: DefenseProfile,
         growth_engine: GrowthEngine,
+        superego: SuperegoLayer | None = None,
     ):
         self.state = state
         self.idea_space = idea_space
@@ -47,6 +50,7 @@ class UnconsciousLayer:
         self.orchestrator = orchestrator
         self.defense_profile = defense_profile
         self.growth_engine = growth_engine
+        self.superego = superego
         self._cycle_count = 1
         self._running = False
         self._task: asyncio.Task | None = None
@@ -125,12 +129,21 @@ class UnconsciousLayer:
         if not recent_turns:
             return
 
+        # Build superego context for moral tension detection
+        superego_context = ""
+        if self.superego:
+            superego_context = build_superego_context(
+                self.superego.get_value_directives(),
+                self.superego.get_moral_health(),
+            )
+
         context = build_unconscious_context(
             recent_turns,
             active_impressions,
             recent_outcomes,
             pending_tasks,
             self._health_report,
+            superego_context,
         )
 
         try:
@@ -202,8 +215,30 @@ class UnconsciousLayer:
     # ── Impression processing ────────────────────────────────────────────
 
     async def _process_impression(self, item: dict):
+        imp_type = item.get("type", "pattern")
+
+        # Handle moral_tension impressions via the superego
+        if imp_type == "moral_tension" and self.superego:
+            value_id = item.get("payload", {}).get("value_id", "")
+            context = item.get("payload", {}).get("tension_context", item.get("content", ""))
+            conv_id = item.get("source_conversation", "")
+            imp = self.superego.record_tension(value_id, context, conv_id)
+            # Also record moral injury for repeated tension
+            self.superego.record_injury(value_id)
+            # Log the superego event
+            await self.state.log_superego_event(
+                event_type="moral_tension",
+                tier="tier2",
+                rule_id=value_id,
+                description=context,
+                conversation_id=conv_id,
+                pressure=imp.pressure,
+            )
+            await self._store_or_reinforce(imp, item.get("urgency", "high"))
+            return
+
         imp = Impression(
-            type=ImpressionType(item.get("type", "pattern")),
+            type=ImpressionType(imp_type),
             content=item.get("content", ""),
             payload=item.get("payload", {}),
             emotional_charge=float(item.get("emotional_charge", 0.0)),
@@ -260,11 +295,16 @@ class UnconsciousLayer:
                     return
 
         # New unique impression
-        imp.pressure = self._calculate_pressure(imp, urgency)
-        imp.pressure = max(
-            self.config.initial_pressure_range[0],
-            min(self.config.initial_pressure_range[1], imp.pressure),
-        )
+        # Preserve pre-calculated pressure (e.g. from superego.record_tension
+        # which has its own min(1.0, ...) guard)
+        if imp.pressure > 0:
+            pass  # Keep pre-calculated pressure as-is
+        else:
+            imp.pressure = self._calculate_pressure(imp, urgency)
+            imp.pressure = max(
+                self.config.initial_pressure_range[0],
+                min(self.config.initial_pressure_range[1], imp.pressure),
+            )
         await self.state.store_impression(imp)
 
     def _calculate_pressure(self, imp: Impression, urgency: str) -> float:

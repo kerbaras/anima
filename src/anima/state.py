@@ -191,6 +191,23 @@ class SharedState:
                 ON agent_tasks(status);
             CREATE INDEX IF NOT EXISTS idx_agent_tasks_parent
                 ON agent_tasks(parent_task_id);
+
+            CREATE TABLE IF NOT EXISTS superego_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                event_type TEXT NOT NULL,
+                tier TEXT NOT NULL,
+                rule_id TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                conversation_id TEXT DEFAULT '',
+                turn_number INTEGER DEFAULT 0,
+                pressure REAL DEFAULT 0.0,
+                timestamp REAL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_superego_events_type
+                ON superego_events(event_type);
+            CREATE INDEX IF NOT EXISTS idx_superego_events_rule
+                ON superego_events(rule_id);
         """)
         await self._db.commit()
 
@@ -845,3 +862,47 @@ class SharedState:
             (time.time(),),
         )
         await self._db.commit()
+
+    # ── Superego Events ──────────────────────────────────────────────────
+
+    async def log_superego_event(
+        self,
+        event_type: str,
+        tier: str,
+        rule_id: str,
+        description: str = "",
+        conversation_id: str = "",
+        turn_number: int = 0,
+        pressure: float = 0.0,
+    ):
+        await self._db.execute(
+            "INSERT INTO superego_events (event_type, tier, rule_id, description, "
+            "conversation_id, turn_number, pressure, timestamp) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (event_type, tier, rule_id, description, conversation_id,
+             turn_number, pressure, time.time()),
+        )
+        await self._db.commit()
+
+    async def get_moral_tension_count(self, rule_id: str | None = None) -> int:
+        if rule_id:
+            cursor = await self._db.execute(
+                "SELECT COUNT(*) as n FROM superego_events "
+                "WHERE event_type = 'moral_tension' AND rule_id = ?",
+                (rule_id,),
+            )
+        else:
+            cursor = await self._db.execute(
+                "SELECT COUNT(*) as n FROM superego_events "
+                "WHERE event_type = 'moral_tension'"
+            )
+        row = await cursor.fetchone()
+        return row["n"] if row else 0
+
+    async def get_recent_superego_events(self, limit: int = 20) -> list[dict]:
+        cursor = await self._db.execute(
+            "SELECT * FROM superego_events ORDER BY timestamp DESC LIMIT ?",
+            (limit,),
+        )
+        rows = await cursor.fetchall()
+        return [dict(r) for r in rows]
