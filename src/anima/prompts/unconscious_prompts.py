@@ -13,7 +13,7 @@ You produce RAW IMPRESSIONS as a JSON array:
 {
     "impressions": [
         {
-            "type": "pattern|drive|connection|warning|memory|skill|correction",
+            "type": "pattern|drive|connection|warning|memory|skill|correction|moral_tension",
             "content": "description",
             "payload": {},
             "emotional_charge": -1.0 to 1.0,
@@ -43,6 +43,11 @@ URGENCY LEVELS:
 For CORRECTION type with critical urgency, include in payload:
 {"correction": "what Haiku should say/do differently", "what_went_wrong": "..."}
 
+For MORAL_TENSION type, include in payload:
+{"value_id": "which_value_id", "tension_context": "what specifically strained this value"}
+Only emit moral_tension when the SYSTEM's behavior violated a value — not when a user
+asks hard questions. A user exploring ethics is fine; the system being dishonest is not.
+
 TASK DELEGATION: If a conversation requires research, coding, or extended work that
 the conscious layer can't do in real-time, create a task. A sub-agent will execute it
 and write progress to a shared document the conscious layer can reference.
@@ -56,6 +61,7 @@ def build_unconscious_context(
     recent_outcomes: list[dict],
     pending_tasks: list[dict],
     health_report: dict | None = None,
+    superego_context: str = "",
 ) -> str:
     """Build the context string sent to Opus each cycle."""
     import json
@@ -93,5 +99,8 @@ def build_unconscious_context(
             f"Flexibility: {health_report.get('flexibility_score', '?')} | "
             f"Growth: {health_report.get('growth_velocity', '?')}"
         )
+
+    if superego_context:
+        parts.append(superego_context)
 
     return "\n".join(parts)

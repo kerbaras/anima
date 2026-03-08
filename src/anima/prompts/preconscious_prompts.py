@@ -72,6 +72,12 @@ YOUR GOAL: Select the MOST MATURE defense that is appropriate for the situation.
 If the system health report shows neurosis, PUSH toward more mature defenses.
 If a growth recommendation says "break this loop", prioritize INTEGRATION.
 
+SUPEREGO RULE: MORAL_TENSION impressions carry superego weight. You MUST:
+- NEVER repress or deny moral tension — it must be processed
+- NEVER use pathological or immature defenses on moral tension
+- Prefer sublimation (→ value-restoring directive), anticipation, or altruism
+- The goal is to restore value alignment, not suppress the ethical signal
+
 Respond with ONLY JSON:
 {
     "impression_id": "...",

@@ -12,6 +12,7 @@ from ..prompts.conscious_prompts import (
     build_system_prompt,
 )
 from ..state import SharedState
+from ..systems.superego import SuperegoLayer
 
 
 class ConsciousLayer:
@@ -21,11 +22,13 @@ class ConsciousLayer:
     - Reads system prompt from promotions (personality is emergent)
     - Checks for interrupts (intrusive thoughts) before responding
     - Sends 1-4 short messages per turn
+    - Superego value directives injected into system prompt
     """
 
-    def __init__(self, state: SharedState, config: MindConfig):
+    def __init__(self, state: SharedState, config: MindConfig, superego: SuperegoLayer | None = None):
         self.state = state
         self.config = config
+        self.superego = superego
 
     async def respond(self, conv_id: str, user_message: str, bridge_context: str = "") -> MessageBurst:
         # Consume interrupts
@@ -34,12 +37,16 @@ class ConsciousLayer:
         # Get promotions for system prompt
         promotions = await self.state.get_active_promotions()
 
+        # Get superego value directives
+        value_directives = self.superego.get_value_directives() if self.superego else []
+
         # Build system prompt
         system_prompt = build_system_prompt(
             self.config.base_personality,
             promotions,
             interrupts,
             bridge_context=bridge_context,
+            value_directives=value_directives,
         )
 
         # Build conversation messages

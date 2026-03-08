@@ -76,8 +76,8 @@ class DefenseProfile:
             return 0.5
         return sum(1 for o in outcomes if o) / len(outcomes)
 
-    def get_health_report(self) -> dict:
-        return {
+    def get_health_report(self, moral_health: dict | None = None) -> dict:
+        report = {
             "maturity_score": round(self.maturity_score, 2),
             "maturity_label": self._maturity_label(),
             "flexibility_score": round(self.flexibility_score, 2),
@@ -93,6 +93,9 @@ class DefenseProfile:
             "most_effective_defenses": self._most_effective(5),
             "warning_signs": self._detect_warning_signs(),
         }
+        if moral_health:
+            report["moral_health"] = moral_health
+        return report
 
     def _maturity_label(self) -> str:
         if self.maturity_score >= 3.5:

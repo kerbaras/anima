@@ -16,6 +16,7 @@ from .systems.growth import GrowthEngine
 from .systems.idea_space import IdeaSpace
 from .systems.neurosis import RepetitionDetector
 from .systems.outcome import OutcomeClassifier
+from .systems.superego import SuperegoLayer
 
 
 class FreudianMind:
@@ -23,6 +24,7 @@ class FreudianMind:
     The complete three-layer mind.
 
     One Opus brain. One Sonnet filter. N Haiku voices (one per conversation).
+    Plus a Superego that brackets the conscious layer with ethical gates.
     """
 
     def __init__(self, config: MindConfig | None = None):
@@ -39,6 +41,9 @@ class FreudianMind:
             self.defense_profile, self.repetition_detector
         )
         self.outcome_classifier = OutcomeClassifier(self.config.classifier_model)
+        self.superego = SuperegoLayer(self.config)
+        self.growth_engine.set_superego(self.superego)
+        self.repetition_detector.set_superego(self.superego)
 
         self.orchestrator = TaskOrchestrator(self.state, self.config)
         self.unconscious = UnconsciousLayer(
@@ -48,11 +53,12 @@ class FreudianMind:
             self.orchestrator,
             self.defense_profile,
             self.growth_engine,
+            self.superego,
         )
         self.preconscious = PreconsciousLayer(
             self.state, self.idea_space, self.defense_profile, self.config
         )
-        self.conscious = ConsciousLayer(self.state, self.config)
+        self.conscious = ConsciousLayer(self.state, self.config, self.superego)
         self.conversations: dict[str, int] = {}
 
     async def start(self):
@@ -84,6 +90,27 @@ class FreudianMind:
         # Log user turn
         await self.state.log_turn(conv_id, turn, "user", user_message)
 
+        # ── GATE 1: Superego pre-check on user input ──
+        violation = self.superego.check_input(user_message)
+        if violation:
+            await self.state.log_superego_event(
+                event_type="axiom_violation",
+                tier="tier1",
+                rule_id=violation.axiom_id,
+                description=violation.reason,
+                conversation_id=conv_id,
+                turn_number=turn,
+            )
+            redirect_msg = self.superego.get_warm_redirect(violation.axiom_id)
+            redirect_burst = MessageBurst(
+                messages=[redirect_msg],
+                conversation_id=conv_id,
+                turn_number=turn,
+            )
+            for i, msg in enumerate(redirect_burst.messages):
+                await self.state.log_turn(conv_id, turn, "assistant", msg, burst_index=i)
+            return redirect_burst
+
         # Classify outcome of PREVIOUS exchange
         if turn > 1:
             prev = await self.state.get_last_assistant_message(conv_id)
@@ -99,12 +126,34 @@ class FreudianMind:
         burst = await self.conscious.respond(conv_id, user_message, bridge_context=bridge_context)
         burst.turn_number = turn
 
+        # ── GATE 2: Superego post-check on generated response ──
+        # If ANY message violates, replace the ENTIRE burst with a warm redirect.
+        # Per-message replacement would produce incoherent output.
+        for msg in burst.messages:
+            violation = self.superego.check_output(msg, user_message)
+            if violation:
+                await self.state.log_superego_event(
+                    event_type="axiom_violation",
+                    tier="tier1",
+                    rule_id=violation.axiom_id,
+                    description=violation.reason,
+                    conversation_id=conv_id,
+                    turn_number=turn,
+                )
+                redirect_msg = self.superego.get_warm_redirect(violation.axiom_id)
+                burst.messages = [redirect_msg]
+                break
+
         # Log assistant messages
         for i, msg in enumerate(burst.messages):
             await self.state.log_turn(conv_id, turn, "assistant", msg, burst_index=i)
 
-        # Update health report for unconscious
-        self.unconscious.set_health_report(self.defense_profile.get_health_report())
+        # Update health report for unconscious (includes moral health from superego)
+        self.unconscious.set_health_report(
+            self.defense_profile.get_health_report(
+                moral_health=self.superego.get_moral_health()
+            )
+        )
 
         return burst
 

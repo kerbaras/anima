@@ -18,6 +18,7 @@ class ImpressionType(str, Enum):
     MEMORY = "memory"
     SKILL = "skill"
     CORRECTION = "correction"
+    MORAL_TENSION = "moral_tension"
 
 
 class PromotionType(str, Enum):
@@ -81,6 +82,7 @@ class GrowthMechanism(str, Enum):
     INTEGRATION = "integration"
     INSIGHT = "insight"
     CORRECTIVE_EXPERIENCE = "corrective_experience"
+    MORAL_REPAIR = "moral_repair"
 
 
 # ── Defense mappings ───────────────────────────────────────────────────────
@@ -239,3 +241,26 @@ class Session:
     turn_count: int = 0
     topic_summary: str = ""
     closed: bool = False
+
+
+# ── Superego models ───────────────────────────────────────────────────────
+
+@dataclass
+class AxiomResult:
+    """Result of a Tier 1 axiom check."""
+    violated: bool = False
+    axiom_id: str = ""
+    reason: str = ""
+
+
+@dataclass
+class SuperegoEvent:
+    """Logged when the superego acts — axiom violation, moral tension, or moral injury."""
+    event_type: str = ""       # "axiom_violation" | "moral_tension" | "moral_injury"
+    tier: str = ""             # "tier1" | "tier2"
+    rule_id: str = ""          # axiom or value id
+    description: str = ""
+    conversation_id: str = ""
+    turn_number: int = 0
+    pressure: float = 0.0
+    timestamp: float = field(default_factory=time.time)

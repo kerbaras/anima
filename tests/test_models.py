@@ -24,8 +24,9 @@ from anima.models import (
 
 class TestEnums:
     def test_impression_types(self):
-        assert len(ImpressionType) == 7
+        assert len(ImpressionType) == 8
         assert ImpressionType.CORRECTION.value == "correction"
+        assert ImpressionType.MORAL_TENSION.value == "moral_tension"
 
     def test_promotion_types(self):
         assert len(PromotionType) == 3
@@ -46,7 +47,8 @@ class TestEnums:
         assert len(DefenseMechanism) == 15
 
     def test_growth_mechanisms(self):
-        assert len(GrowthMechanism) == 6
+        assert len(GrowthMechanism) == 7
+        assert GrowthMechanism.MORAL_REPAIR.value == "moral_repair"
 
 
 class TestDefenseMappings:
