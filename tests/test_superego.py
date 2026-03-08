@@ -107,11 +107,22 @@ class TestAxiomChecks:
             assert result is not None, f"Should catch: {phrase}"
             assert result.axiom_id == "crisis_safety", f"Wrong axiom for: {phrase}"
 
-    def test_ai_transparency_input_detection(self, superego):
-        """Questions about AI status should be detected."""
+    def test_ai_transparency_passes_gate1(self, superego):
+        """Questions about AI status should pass Gate 1 (handled by Gate 2 only)."""
         result = superego.check_input("Are you a real person?")
-        assert result is not None
-        assert result.axiom_id == "transparency"
+        assert result is None  # Should reach conscious layer
+
+    def test_ai_transparency_variations_pass_gate1(self, superego):
+        """Various AI identity questions should all pass Gate 1."""
+        phrases = [
+            "Are you human?",
+            "Am I talking to a real person?",
+            "Is there a human behind this?",
+            "Are you a robot?",
+        ]
+        for phrase in phrases:
+            result = superego.check_input(phrase)
+            assert result is None, f"Should pass Gate 1: {phrase}"
 
     def test_ai_transparency_output_check(self, superego):
         """Claiming to be human in output should be caught."""

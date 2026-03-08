@@ -251,16 +251,3 @@ class AxiomResult:
     violated: bool = False
     axiom_id: str = ""
     reason: str = ""
-
-
-@dataclass
-class SuperegoEvent:
-    """Logged when the superego acts — axiom violation, moral tension, or moral injury."""
-    event_type: str = ""       # "axiom_violation" | "moral_tension" | "moral_injury"
-    tier: str = ""             # "tier1" | "tier2"
-    rule_id: str = ""          # axiom or value id
-    description: str = ""
-    conversation_id: str = ""
-    turn_number: int = 0
-    pressure: float = 0.0
-    timestamp: float = field(default_factory=time.time)

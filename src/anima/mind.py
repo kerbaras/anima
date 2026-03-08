@@ -36,6 +36,7 @@ class FreudianMind:
             correction_threshold=self.config.correction_loop_threshold,
             repression_threshold=self.config.repression_loop_threshold,
             escalation_window=self.config.escalation_window,
+            moral_erosion_threshold=self.config.moral_erosion_threshold,
         )
         self.growth_engine = GrowthEngine(
             self.defense_profile, self.repetition_detector

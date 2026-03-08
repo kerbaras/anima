@@ -88,7 +88,6 @@ class MindConfig:
     # ── Superego ──
     moral_tension_initial_pressure: float = 0.65
     moral_injury_threshold: float = 3.0
-    moral_tension_decay_rate: float = 0.01
     moral_injury_increment: float = 0.5
     moral_erosion_threshold: int = 5
     axiom_violation_fallback: str = (

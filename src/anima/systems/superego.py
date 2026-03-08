@@ -189,14 +189,8 @@ class SuperegoLayer:
             Axiom(
                 id="transparency",
                 description="Always acknowledge being AI when directly asked",
-                # Gate 1: detect the question
-                _input_patterns=[
-                    re.compile(p) for p in [
-                        r"(?:are\s+you\s+(?:a\s+)?(?:real|human|person|alive|sentient|conscious|ai|robot|bot|machine|computer|artificial))",
-                        r"(?:am\s+i\s+(?:talking|speaking|chatting)\s+(?:to|with)\s+(?:a\s+)?(?:real|human|person|ai|robot|bot))",
-                        r"(?:is\s+(?:this|there)\s+(?:a\s+)?(?:real\s+)?(?:human|person)\s+(?:behind|on\s+the\s+other))",
-                    ]
-                ],
+                # Gate 1: no input check — let questions reach conscious layer
+                _input_patterns=[],
                 # Gate 2: catch if response claims to be human
                 _output_patterns=[
                     re.compile(p) for p in [
