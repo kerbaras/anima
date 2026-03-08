@@ -91,6 +91,18 @@ class FreudianMind:
         # Log user turn
         await self.state.log_turn(conv_id, turn, "user", user_message)
 
+        # Classify outcome of PREVIOUS exchange (must run before Gate 1
+        # so feedback signals are not lost when input is blocked)
+        if turn > 1:
+            prev = await self.state.get_last_assistant_message(conv_id)
+            if prev:
+                outcome = await self.outcome_classifier.classify(
+                    prev, user_message, conv_id, turn
+                )
+                await self.state.log_outcome(outcome)
+                self.repetition_detector.record_outcome(outcome)
+                self._update_last_defense_outcome(outcome)
+
         # ── GATE 1: Superego pre-check on user input ──
         violation = self.superego.check_input(user_message)
         if violation:
@@ -111,17 +123,6 @@ class FreudianMind:
             for i, msg in enumerate(redirect_burst.messages):
                 await self.state.log_turn(conv_id, turn, "assistant", msg, burst_index=i)
             return redirect_burst
-
-        # Classify outcome of PREVIOUS exchange
-        if turn > 1:
-            prev = await self.state.get_last_assistant_message(conv_id)
-            if prev:
-                outcome = await self.outcome_classifier.classify(
-                    prev, user_message, conv_id, turn
-                )
-                await self.state.log_outcome(outcome)
-                self.repetition_detector.record_outcome(outcome)
-                self._update_last_defense_outcome(outcome)
 
         # Generate response
         burst = await self.conscious.respond(conv_id, user_message, bridge_context=bridge_context)

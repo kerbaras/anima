@@ -295,11 +295,16 @@ class UnconsciousLayer:
                     return
 
         # New unique impression
-        imp.pressure = self._calculate_pressure(imp, urgency)
-        imp.pressure = max(
-            self.config.initial_pressure_range[0],
-            min(self.config.initial_pressure_range[1], imp.pressure),
-        )
+        # Preserve pre-calculated pressure (e.g. from superego.record_tension
+        # which has its own min(1.0, ...) guard)
+        if imp.pressure > 0:
+            pass  # Keep pre-calculated pressure as-is
+        else:
+            imp.pressure = self._calculate_pressure(imp, urgency)
+            imp.pressure = max(
+                self.config.initial_pressure_range[0],
+                min(self.config.initial_pressure_range[1], imp.pressure),
+            )
         await self.state.store_impression(imp)
 
     def _calculate_pressure(self, imp: Impression, urgency: str) -> float:
